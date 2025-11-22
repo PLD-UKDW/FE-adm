@@ -1,104 +1,161 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
 
-export default function CamabaTestPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = React.use(params);
+export default function DoTestPage() {
+  const { id } = useParams();
+  const router = useRouter();
 
   const [test, setTest] = useState<any>(null);
+  const [questions, setQuestions] = useState<any[]>([]);
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [current, setCurrent] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [answers, setAnswers] = useState<Record<number, string>>({});
-  const [submitMessage, setSubmitMessage] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
-  // Load test
   useEffect(() => {
-    async function loadTest() {
-      try {
-        const res = await fetch(`http://localhost:4000/api/public/tests/${id}`);
+    const token = localStorage.getItem("token");
+    if (!token) return router.push("/login");
 
-        if (!res.ok) {
-          throw new Error("Gagal memuat test");
+    const fetchData = async () => {
+      try {
+        const tRes = await fetch(`http://localhost:4000/api/test/${id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const qRes = await fetch(`http://localhost:4000/api/test/${id}/questions`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (tRes.status === 401 || qRes.status === 401) {
+          localStorage.removeItem("token");
+          return router.push("/login");
         }
 
-        const data = await res.json();
-        setTest(data);
-      } catch (err: any) {
-        setError(err.message);
+        const t = await tRes.json();
+        const q = await qRes.json();
+
+        setTest(t);
+        setQuestions(q);
+      } catch (e) {
+        console.error("Error fetching:", e);
       } finally {
         setLoading(false);
       }
-    }
+    };
 
-    loadTest();
-  }, [id]);
+    fetchData();
+  }, [id, router]);
 
-  // Handle pilih jawaban
-  const handleSelect = (questionId: number, option: string) => {
-    setAnswers((prev) => ({
-      ...prev,
-      [questionId]: option,
-    }));
+  if (loading) return <p className="p-6">Memuat soal...</p>;
+  if (!test) return <p className="p-6">Test tidak ditemukan.</p>;
+
+  const q = questions[current];
+
+  const handleChoose = (value: string) => {
+    setAnswers((prev) => ({ ...prev, [q.id]: value }));
   };
 
-  // Submit jawaban
   const handleSubmit = async () => {
-    setSubmitMessage("");
+    const token = localStorage.getItem("token");
+    setSubmitting(true);
 
     try {
       const res = await fetch(`http://localhost:4000/api/test/${id}/submit`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer " + localStorage.getItem("token"), // WAJIB
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ answers }),
       });
 
-      const data = await res.json();
+      const result = await res.json();
+      console.log("Submit response:", result);
 
-      if (!res.ok) {
-        setSubmitMessage(data.message || "Gagal submit");
-        return;
-      }
-
-      setSubmitMessage("Berhasil submit! Nilai: " + data.score);
-    } catch (err: any) {
-      setSubmitMessage("Terjadi error saat submit");
+      router.push(`/test/${id}/result`);
+    } catch (e) {
+      console.error("Submit error:", e);
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  if (loading) return <p className="p-6">Loading soal...</p>;
-  if (error) return <p className="p-6 text-red-500">{error}</p>;
-  if (!test) return <p className="p-6">Test tidak ditemukan</p>;
-
   return (
-    <div className="p-8 max-w-3xl mx-auto">
+    <div className="max-w-3xl mx-auto p-8">
       <h1 className="text-3xl font-bold mb-2">{test.title}</h1>
       <p className="text-gray-500 mb-6">{test.description}</p>
 
-      <div className="space-y-6">
-        {test.questions.map((q: any, idx: number) => (
-          <div key={q.id} className="p-4 border rounded-lg shadow-sm bg-white">
-            <h3 className="font-semibold mb-2">
-              {idx + 1}. {q.text}
-            </h3>
+      <div className="border rounded-xl p-6 shadow-sm">
+        <h2 className="text-xl font-semibold mb-4">
+          Soal {current + 1} dari {questions.length}
+        </h2>
 
-            {q.options.map((op: string, i: number) => (
-              <label key={i} className="flex items-center gap-2 mb-1">
-                <input type="radio" name={`q-${q.id}`} value={op} checked={answers[q.id] === op} onChange={() => handleSelect(q.id, op)} />
-                {op}
+        <p className="text-lg mb-4">{q.question}</p>
+
+        {/* PILGAN */}
+        {q.type === "PILGAN" && (
+          <div className="space-y-3">
+            {q.options.map((opt: any, i: number) => (
+              <label
+                key={i}
+                className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer ${
+                  answers[q.id] === opt
+                    ? "border-blue-500 bg-blue-50"
+                    : "hover:bg-gray-50"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name={q.id}
+                  checked={answers[q.id] === opt}
+                  onChange={() => handleChoose(opt)}
+                />
+                {opt}
               </label>
             ))}
           </div>
-        ))}
+        )}
+
+        {/* ESSAY */}
+        {q.type === "ESSAY" && (
+          <textarea
+            className="w-full border rounded-lg p-3"
+            rows={6}
+            value={answers[q.id] ?? ""}
+            onChange={(e) => handleChoose(e.target.value)}
+            placeholder="Tulis jawaban kamu..."
+          />
+        )}
       </div>
 
-      <button onClick={handleSubmit} className="mt-6 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
-        Submit Jawaban
-      </button>
+      {/* Navigasi Soal */}
+      <div className="flex justify-between mt-6">
+        <button
+          onClick={() => setCurrent((c) => Math.max(0, c - 1))}
+          disabled={current === 0}
+          className="px-4 py-2 border rounded-lg disabled:opacity-40"
+        >
+          ← Sebelumnya
+        </button>
 
-      {submitMessage && <p className="mt-4 font-medium text-green-600">{submitMessage}</p>}
+        {current < questions.length - 1 ? (
+          <button
+            onClick={() => setCurrent((c) => Math.min(questions.length - 1, c + 1))}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg"
+          >
+            Selanjutnya →
+          </button>
+        ) : (
+          <button
+            onClick={handleSubmit}
+            disabled={submitting}
+            className="px-4 py-2 bg-green-600 text-white rounded-lg"
+          >
+            {submitting ? "Mengirim..." : "Kirim Jawaban"}
+          </button>
+        )}
+      </div>
     </div>
   );
 }

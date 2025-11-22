@@ -1,121 +1,156 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import api from "@/lib/api";
 import Link from "next/link";
 
 export default function AdminDashboard() {
-  const router = useRouter();
-
-  const [stats, setStats] = useState({
-    totalTests: 0,
-    totalAttempts: 0,
-    ungradedAttempts: 0,
-  });
-
+  const [tests, setTests] = useState([]);
+  const [attempts, setAttempts] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // 🔐 Cek token
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) router.push("/login");
-  }, [router]);
+  async function fetchAll() {
+    try {
+      const [tRes, aRes] = await Promise.all([
+        api.get("/admin/tests"),
+        api.get("/admin/attempts"),
+      ]);
 
-  // 📊 Fetch Dashboard Data
-  useEffect(() => {
-    async function load() {
-      try {
-        const [testsRes, attemptsRes, ungradedRes] = await Promise.all([
-          api.get("/admin/tests"),
-          api.get("/admin/attempts"),
-          api.get("/admin/attempts?ungraded=1"),
-        ]);
-
-        setStats({
-          totalTests: testsRes.data.length,
-          totalAttempts: attemptsRes.data.length,
-          ungradedAttempts: ungradedRes.data.length,
-        });
-
-        setLoading(false);
-      } catch (err) {
-        console.error(err);
-      }
+      setTests(tRes.data);
+      setAttempts(aRes.data);
+    } catch (err) {
+      console.error("FETCH ERROR:", err);
+    } finally {
+      setLoading(false);
     }
+  }
 
-    load();
+  useEffect(() => {
+    fetchAll();
   }, []);
 
-  if (loading) return <div className="p-8">Loading dashboard...</div>;
+  if (loading)
+    return (
+      <div className="p-6">
+        <p className="text-gray-600">Loading dashboard...</p>
+      </div>
+    );
 
   return (
-    <div className="p-8 space-y-8">
+    <div className="p-8 space-y-10">
+      <h1 className="text-3xl font-bold">Admin Dashboard</h1>
 
-      {/* Title */}
-      <h1 className="text-3xl font-bold">Dashboard Admin</h1>
-
-      {/* Statistic Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-
-        {/* Total Tests */}
-        <div className="p-6 bg-blue-500 text-white rounded-xl shadow hover:bg-blue-600 transition">
-          <p className="text-xl font-semibold">Total Test</p>
-          <p className="text-4xl font-bold mt-2">{stats.totalTests}</p>
-        </div>
-
-        {/* Total Attempts */}
-        <div className="p-6 bg-purple-500 text-white rounded-xl shadow hover:bg-purple-600 transition">
-          <p className="text-xl font-semibold">Total Attempt</p>
-          <p className="text-4xl font-bold mt-2">{stats.totalAttempts}</p>
-        </div>
-
-        {/* Ungraded Attempts */}
-        <div className="p-6 bg-red-500 text-white rounded-xl shadow hover:bg-red-600 transition">
-          <p className="text-xl font-semibold">Belum Dinilai</p>
-          <p className="text-4xl font-bold mt-2">{stats.ungradedAttempts}</p>
-        </div>
-
-      </div>
-
-      {/* Quick Actions */}
-      <div className="space-y-4 mt-10">
-        <h2 className="text-2xl font-bold">Menu Cepat</h2>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {/* ============================
+          SECTION: TEST LIST
+      ============================= */}
+      <section>
+        <div className="flex justify-between items-center mb-3">
+          <h2 className="text-2xl font-semibold">Daftar Test</h2>
 
           <Link
-            href="/admin/tests"
-            className="p-6 bg-white rounded-xl shadow hover:shadow-lg transition border"
+            href="/admin/tests/create"
+            className="px-4 py-2 bg-blue-600 text-white rounded shadow"
           >
-            <h3 className="text-xl font-semibold">Kelola Semua Test</h3>
-            <p className="text-gray-600 mt-2">
-              Lihat, tambah, dan kelola test
-            </p>
+            + Buat Test Baru
           </Link>
-
-          <Link
-            href="/admin/tests/add"
-            className="p-6 bg-white rounded-xl shadow hover:shadow-lg transition border"
-          >
-            <h3 className="text-xl font-semibold">Tambah Test Baru</h3>
-            <p className="text-gray-600 mt-2">
-              Buat test baru untuk peserta
-            </p>
-          </Link>
-
-          <Link
-            href="/admin/attempts"
-            className="p-6 bg-white rounded-xl shadow hover:shadow-lg transition border"
-          >
-            <h3 className="text-xl font-semibold">Lihat Attempt</h3>
-            <p className="text-gray-600 mt-2">
-              Periksa attempt peserta
-            </p>
-          </Link>
-
         </div>
-      </div>
+
+        <div className="border rounded-lg overflow-hidden">
+          <table className="w-full border-collapse">
+            <thead className="bg-gray-100 border-b">
+              <tr>
+                <th className="p-3 text-left">ID</th>
+                <th className="p-3 text-left">Judul</th>
+                <th className="p-3 text-left">Tipe</th>
+                <th className="p-3 text-left">Jumlah Soal</th>
+                <th className="p-3 text-left">Aksi</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {tests.map((t: any) => (
+                <tr key={t.id} className="border-b hover:bg-gray-50">
+                  <td className="p-3">{t.id}</td>
+                  <td className="p-3">{t.title}</td>
+                  <td className="p-3">{t.type}</td>
+                  <td className="p-3">{t.questions?.length} soal</td>
+                  <td className="p-3">
+                    <Link
+                      href={`/admin/tests/${t.id}`}
+                      className="text-blue-600 underline"
+                    >
+                      Detail
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+
+              {tests.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="p-4 text-center text-gray-500">
+                    Tidak ada test.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {/* ============================
+          SECTION: ATTEMPT LIST
+      ============================= */}
+      <section>
+        <h2 className="text-2xl font-semibold mb-3">Daftar Attempt Peserta</h2>
+
+        <div className="border rounded-lg overflow-hidden">
+          <table className="w-full border-collapse">
+            <thead className="bg-gray-100 border-b">
+              <tr>
+                <th className="p-3 text-left">Attempt ID</th>
+                <th className="p-3 text-left">Peserta</th>
+                <th className="p-3 text-left">Test</th>
+                <th className="p-3 text-left">Skor</th>
+                <th className="p-3 text-left">Status</th>
+                <th className="p-3 text-left">Aksi</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {attempts.map((a: any) => (
+                <tr key={a.id} className="border-b hover:bg-gray-50">
+                  <td className="p-3">{a.id}</td>
+                  <td className="p-3">{a.user?.name}</td>
+                  <td className="p-3">{a.test?.title}</td>
+                  <td className="p-3">{a.score ?? "-"}</td>
+                  <td className="p-3">
+                    {a.passStatus ?? (
+                      <span className="text-gray-500">Belum dinilai</span>
+                    )}
+                  </td>
+
+                  <td className="p-3">
+                    <Link
+                      href={`/admin/attempts/${a.id}`}
+                      className="text-blue-600 underline"
+                    >
+                      Review / Nilai
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+
+              {attempts.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="p-4 text-center text-gray-500">
+                    Belum ada attempt peserta.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
     </div>
   );
 }
