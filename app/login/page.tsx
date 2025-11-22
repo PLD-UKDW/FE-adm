@@ -98,7 +98,7 @@ export default function LoginPage() {
         if (role === "ADMIN") {
           router.push("/admin/dashboard");
         } else {
-          router.push("/dashboard");
+          router.push("/dashboard/camaba");
         }
         return;
       }
