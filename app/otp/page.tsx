@@ -1,70 +1,114 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useRef, useState } from "react";
 import api from "@/lib/api";
 import { useRouter, useSearchParams } from "next/navigation";
 
 export default function OTPPage() {
+  const [otp, setOtp] = useState<string[]>(Array(6).fill(""));
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const inputsRef = useRef<HTMLInputElement[]>([]);
   const router = useRouter();
   const params = useSearchParams();
 
   const registrationNumber = params.get("registrationNumber") || "";
 
-  const [otp, setOtp] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const handleChange = (value: string, index: number) => {
+    if (!/^[0-9]?$/.test(value)) return;
 
-  const handleVerify = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
+    const newOtp = [...otp];
+    newOtp[index] = value;
+    setOtp(newOtp);
+
+    if (value && index < 5) {
+      inputsRef.current[index + 1]?.focus();
+    }
+  };
+
+  const handleBackspace = (
+    e: React.KeyboardEvent<HTMLInputElement>,
+    index: number
+  ) => {
+    if (e.key === "Backspace" && !otp[index] && index > 0) {
+      inputsRef.current[index - 1]?.focus();
+    }
+  };
+
+  const handleSubmit = async () => {
+    const code = otp.join("");
+
+    if (code.length < 6) {
+      setError("OTP harus 6 digit");
+      return;
+    }
+
     setLoading(true);
+    setError("");
 
     try {
-      const res = await api.post("/verify-admin", {
+      const res = await api.post("/api/verify-admin", {
         registrationNumber,
-        otp,
+        otp: code,
       });
 
       localStorage.setItem("token", res.data.token);
 
       router.push("/admin/dashboard");
     } catch (err: any) {
-      setError(err?.response?.data?.message || "Verification failed");
+      setError(err?.response?.data?.message || "OTP salah atau gagal.");
     } finally {
       setLoading(false);
     }
   };
 
-  if (!registrationNumber) return <div>Invalid session.</div>;
-
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100 px-4">
-      <div className="bg-white p-8 rounded-xl shadow-lg w-full max-w-md">
-        <h1 className="text-xl font-bold mb-6 text-center">Masukkan OTP</h1>
+    <div className="flex items-center justify-center min-h-screen bg-[#108607] p-4">
+      <div className="bg-white rounded-2xl shadow-xl p-10 w-full max-w-md text-center">
 
-        <p className="mb-4 text-sm text-gray-600 text-center">
-          OTP dikirim ke email admin.
+        <h2 className="text-2xl font-bold text-[#108607]">Masukkan Kode OTP</h2>
+
+        <p className="text-gray-600 mt-2 mb-8">
+          Silakan masukkan 6 digit kode OTP yang dikirim ke nomor Anda.
         </p>
 
-        <form onSubmit={handleVerify} className="space-y-4">
-          <input
-            type="text"
-            className="w-full p-3 rounded border"
-            placeholder="Masukkan 6-digit OTP"
-            value={otp}
-            onChange={(e) => setOtp(e.target.value)}
-            required
-          />
+        {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
 
-          {error && <p className="text-red-600 text-sm">{error}</p>}
+        {/* OTP INPUT BOXES */}
+        <div className="flex justify-center gap-4 mb-8">
+          {otp.map((digit, index) => (
+            <input
+              key={index}
+              ref={(el) => {
+                if (el) inputsRef.current[index] = el;
+              }}
+              type="text"
+              maxLength={1}
+              value={digit}
+              onChange={(e) => handleChange(e.target.value, index)}
+              onKeyDown={(e) => handleBackspace(e, index)}
+              className="
+                w-14 h-16 text-center text-2xl font-bold
+                border-2 rounded-xl outline-none
+                border-gray-300 focus:border-[#108607] focus:ring-2 focus:ring-[#108607]/30
+                transition
+              "
+            />
+          ))}
+        </div>
 
-          <button
-            disabled={loading}
-            className="w-full bg-green-600 text-white p-3 rounded hover:bg-green-700 transition disabled:bg-gray-400"
-          >
-            {loading ? "Checking..." : "Verify OTP"}
-          </button>
-        </form>
+        <button
+          onClick={handleSubmit}
+          disabled={loading}
+          className="w-full bg-[#108607] text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition disabled:opacity-50"
+        >
+          {loading ? "Memverifikasi..." : "Verifikasi"}
+        </button>
+
+        <button className="mt-4 text-sm text-[#108607] hover:underline">
+          Kirim ulang OTP
+        </button>
       </div>
     </div>
   );

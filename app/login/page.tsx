@@ -61,9 +61,10 @@
 
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import api from "@/lib/api";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 
 export default function LoginPage() {
   const [registrationNumber, setRegistrationNumber] = useState("");
@@ -78,7 +79,7 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const res = await api.post("/login", { registrationNumber });
+      const res = await api.post("/api/login", { registrationNumber });
 
       // --- CASE 1: ADMIN (OTP DIKIRIM)
       if (res.data.message === "OTP sent") {
@@ -88,8 +89,17 @@ export default function LoginPage() {
 
       // --- CASE 2: PESERTA
       if (res.data.token) {
+        // cek role dari server
+        const role = res.data.user?.role;
+
         localStorage.setItem("token", res.data.token);
-        router.push("/dashboard");
+        localStorage.setItem("user", JSON.stringify(res.data.user));
+
+        if (role === "ADMIN") {
+          router.push("/admin/dashboard");
+        } else {
+          router.push("/dashboard/camaba");
+        }
         return;
       }
 
@@ -103,34 +113,58 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100 px-4">
-      <div className="bg-white p-8 rounded-xl shadow-lg w-full max-w-md">
-        <h1 className="text-2xl font-bold mb-6 text-center">
-          Login Peserta / Admin
+    <div className="bg-[#8db93f] min-h-screen flex items-center justify-center p-6">
+      <div className="w-full max-w-md bg-[#108607] rounded-2xl shadow-xl p-10">
+
+        {/* LOGO */}
+        <div className="flex justify-center mb-6">
+          <Image
+            src="/logo/logould.png"
+            width={120}
+            height={120}
+            alt="Logo"
+            className="invert brightness-0"
+          />
+        </div>
+
+        <h1 className="text-3xl font-bold text-white text-center mb-2">
+          Welcome Back!
         </h1>
 
-        <form onSubmit={handleLogin} className="space-y-4">
-          <div>
-            <label className="block mb-1 text-gray-800">Registration Number</label>
-            <input
-              type="text"
-              className="w-full p-3 rounded border"
-              placeholder="Contoh: PST-1001"
-              value={registrationNumber}
-              onChange={(e) => setRegistrationNumber(e.target.value)}
-              required
-            />
-          </div>
+        <p className="text-white/90 text-center mb-8 px-4">
+          Please sign in to your account by completing the necessary fields below
+        </p>
 
-          {error && <p className="text-red-600 text-sm">{error}</p>}
+        {/* FORM LOGIN */}
+        <form onSubmit={handleLogin} className="mt-4">
+          <label className="text-white text-sm mb-2 block">
+            Nomor Registrasi
+          </label>
+          <input
+            type="text"
+            name="registrationNumber"
+            value={registrationNumber}
+            onChange={(e) => setRegistrationNumber(e.target.value)}
+            placeholder="Masukkan Nomor Registrasi Anda"
+            className="w-full px-4 py-3 mb-6 rounded-lg border border-white/60 bg-white/10 text-white placeholder-white/70 focus:border-white"
+          />
+
+          {error && (
+            <p className="mb-3 text-center text-sm text-red-300">{error}</p>
+          )}
 
           <button
+            type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 text-white p-3 rounded hover:bg-blue-700 transition disabled:bg-gray-400"
+            className="w-full bg-white text-[#108607] py-3 rounded-lg font-semibold hover:bg-gray-100 transition disabled:opacity-70 flex items-center justify-center gap-2"
           >
-            {loading ? "Loading..." : "Login"}
+            Sign In
+            {loading && (
+              <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-solid border-[#108607] border-t-transparent" />
+            )}
           </button>
         </form>
+
       </div>
     </div>
   );
