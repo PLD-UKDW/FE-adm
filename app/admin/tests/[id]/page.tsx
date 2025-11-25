@@ -17,6 +17,7 @@ export default function TestDetailPage() {
   const [questionType, setQuestionType] = useState("MULTIPLE_CHOICE");
   const [options, setOptions] = useState<string[]>([""]);
   const [answer, setAnswer] = useState("");
+  const [autoScore, setAutoScore] = useState<string>("");
 
   async function fetchTest() {
     try {
@@ -43,7 +44,8 @@ export default function TestDetailPage() {
         text,
         questionType,
         options: JSON.stringify(options),
-        answer: questionType === "MULTIPLE_CHOICE" ? answer : null,
+        answer,
+        autoScore: questionType === "MULTIPLE_CHOICE" ? Number(autoScore || 0) : 0,
       });
 
       setText("");
@@ -81,7 +83,7 @@ export default function TestDetailPage() {
   if (!test) return <p className="p-6 text-red-600">Test tidak ditemukan.</p>;
 
   return (
-    <div className="p-8 space-y-8">
+    <div className="p-8 space-y-8 text-black">
       <h1 className="text-3xl font-bold">Detail Test</h1>
 
       {/* ============================
@@ -117,10 +119,20 @@ export default function TestDetailPage() {
         {/* Multiple Choice options */}
         {questionType === "MULTIPLE_CHOICE" && (
           <div className="space-y-3">
+            {/* Tambah Skor Otomatis */}
+            <div>
+              <label className="font-medium">Skor </label>
+              <input type="number" className="border p-2 rounded w-full" value={autoScore} onChange={(e) => setAutoScore(e.target.value)} placeholder="Contoh: 10" />
+            </div>
+
             <label className="font-medium">Pilihan Jawaban</label>
 
             {options.map((opt, idx) => (
-              <div key={idx} className="flex gap-2">
+              <div key={idx} className="flex items-center gap-3">
+                {/* Radio Button */}
+                <input type="radio" name="correctAnswer" value={idx} checked={answer === idx.toString()} onChange={() => setAnswer(idx.toString())} className="h-4 w-4" />
+
+                {/* Input Text */}
                 <input
                   value={opt}
                   onChange={(e) => {
@@ -129,12 +141,14 @@ export default function TestDetailPage() {
                     setOptions(updated);
                   }}
                   className="border p-2 rounded w-full"
-                  placeholder={`Pilihan ${idx + 1}`}
+                  placeholder={`Pilihan ${String.fromCharCode(65 + idx)}`}
                 />
 
+                {/* Button Hapus */}
                 <button
                   onClick={() => {
-                    setOptions(options.filter((_, i) => i !== idx));
+                    const updated = options.filter((_, i) => i !== idx);
+                    setOptions(updated);
                   }}
                   className="px-2 bg-red-500 text-white rounded"
                 >
@@ -143,14 +157,10 @@ export default function TestDetailPage() {
               </div>
             ))}
 
+            {/* Add Option */}
             <button onClick={() => setOptions([...options, ""])} className="px-3 py-1 bg-gray-300 rounded">
               + Tambah Pilihan
             </button>
-
-            <div>
-              <label className="font-medium">Jawaban Benar</label>
-              <input value={answer} onChange={(e) => setAnswer(e.target.value)} className="border p-2 rounded w-full" placeholder="Isi jawaban yang benar" />
-            </div>
           </div>
         )}
 
@@ -179,14 +189,25 @@ export default function TestDetailPage() {
                 <th className="p-3 text-left">Soal</th>
                 <th className="p-3 text-left">Tipe</th>
                 <th className="p-3 text-left">Aksi</th>
+                <th className="p-3 text-left">Skor</th>
               </tr>
             </thead>
             <tbody>
-              {test.questions?.map((q: any) => (
+              {test.questions?.map((q: any, idx: number) => (
                 <tr key={q.id} className="border-b hover:bg-gray-50">
-                  <td className="p-3">{q.id}</td>
+                  {/* Nomor Soal */}
+                  <td className="p-3">{idx + 1}</td>
+
+                  {/* Soal */}
                   <td className="p-3">{q.text}</td>
+
+                  {/* Tipe */}
                   <td className="p-3">{q.questionType}</td>
+
+                  {/* Skor */}
+                  <td className="p-3">{q.autoScore}</td>
+
+                  {/* Aksi */}
                   <td className="p-3">
                     <button onClick={() => deleteQuestion(q.id)} className="text-red-600 underline">
                       Hapus
@@ -197,7 +218,7 @@ export default function TestDetailPage() {
 
               {test.questions?.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="p-4 text-center text-gray-500">
+                  <td colSpan={5} className="p-4 text-center text-gray-500">
                     Tidak ada soal.
                   </td>
                 </tr>
