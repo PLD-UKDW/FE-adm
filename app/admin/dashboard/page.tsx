@@ -1,12 +1,38 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import UnderDevelopment from "@/components/UnderDevelopment";
 import api from "@/lib/api";
 import Link from "next/link";
+import { useEffect, useState } from "react";
+
+interface Question {
+  id: string;
+}
+
+interface Test {
+  id: string;
+  title: string;
+  type: string;
+  questions?: Question[];
+}
+
+interface User {
+  name: string;
+}
+
+interface Attempt {
+  id: string;
+  user?: User;
+  test?: { title: string };
+  score?: number;
+  passStatus?: string;
+}
+
+const UNDER_MAINTENANCE = true;
 
 export default function AdminDashboard() {
   const [tests, setTests] = useState<any[]>([]);
-  const [attempts, setAttempts] = useState<any[]>([]);
+  const [attempts, setAttempts] = useState<any[]>([])
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState(0);
 
@@ -35,9 +61,13 @@ export default function AdminDashboard() {
   }
 
   useEffect(() => {
-    fetchAll();
+    if (!UNDER_MAINTENANCE) {
+      fetchAll();
+    }
   }, []);
 
+  if (UNDER_MAINTENANCE) {
+    return <UnderDevelopment />;
   // =============================
   // CREATE TEST HANDLER
   // =============================
@@ -71,7 +101,7 @@ export default function AdminDashboard() {
   if (loading)
     return (
       <div className="p-6">
-        <p className="text-gray-600">Loading dashboard...</p>
+        <p className="text-black">Loading dashboard...</p>
       </div>
     );
 
@@ -173,6 +203,7 @@ export default function AdminDashboard() {
             </thead>
 
             <tbody>
+              {tests.map((t: Test) => (
               {tests.map((t) => (
                 <tr key={t.id} className="border-b hover:bg-gray-50">
                   <td className="p-3">{t.id}</td>
@@ -223,6 +254,16 @@ export default function AdminDashboard() {
               const testAttempts = attempts.filter((a) => a.testId === t.id);
               const pending = testAttempts.filter((a) => !a.passStatus).length;
 
+            <tbody>
+              {attempts.map((a: Attempt) => (
+                <tr key={a.id} className="border-b hover:bg-gray-50">
+                  <td className="p-3">{a.id}</td>
+                  <td className="p-3">{a.user?.name}</td>
+                  <td className="p-3">{a.test?.title}</td>
+                  <td className="p-3">{a.score ?? "-"}</td>
+                  <td className="p-3">
+                    {a.passStatus ?? (
+                      <span className="text-gray-500">Belum dinilai</span>
               return (
                 <div
                   key={t.id}
