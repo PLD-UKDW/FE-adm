@@ -1,12 +1,38 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import UnderDevelopment from "@/components/UnderDevelopment";
 import api from "@/lib/api";
 import Link from "next/link";
+import { useEffect, useState } from "react";
+
+interface Question {
+  id: string;
+}
+
+interface Test {
+  id: string;
+  title: string;
+  type: string;
+  questions?: Question[];
+}
+
+interface User {
+  name: string;
+}
+
+interface Attempt {
+  id: string;
+  user?: User;
+  test?: { title: string };
+  score?: number;
+  passStatus?: string;
+}
+
+const UNDER_MAINTENANCE = true;
 
 export default function AdminDashboard() {
-  const [tests, setTests] = useState([]);
-  const [attempts, setAttempts] = useState([]);
+  const [tests, setTests] = useState<Test[]>([]);
+  const [attempts, setAttempts] = useState<Attempt[]>([]);
   const [loading, setLoading] = useState(true);
 
   async function fetchAll() {
@@ -26,18 +52,24 @@ export default function AdminDashboard() {
   }
 
   useEffect(() => {
-    fetchAll();
+    if (!UNDER_MAINTENANCE) {
+      fetchAll();
+    }
   }, []);
+
+  if (UNDER_MAINTENANCE) {
+    return <UnderDevelopment />;
+  }
 
   if (loading)
     return (
       <div className="p-6">
-        <p className="text-gray-600">Loading dashboard...</p>
+        <p className="text-black">Loading dashboard...</p>
       </div>
     );
 
   return (
-    <div className="p-8 space-y-10">
+    <div className="p-8 space-y-10 text-black">
       <h1 className="text-3xl font-bold">Admin Dashboard</h1>
 
       {/* ============================
@@ -68,7 +100,7 @@ export default function AdminDashboard() {
             </thead>
 
             <tbody>
-              {tests.map((t: any) => (
+              {tests.map((t: Test) => (
                 <tr key={t.id} className="border-b hover:bg-gray-50">
                   <td className="p-3">{t.id}</td>
                   <td className="p-3">{t.title}</td>
@@ -117,7 +149,7 @@ export default function AdminDashboard() {
             </thead>
 
             <tbody>
-              {attempts.map((a: any) => (
+              {attempts.map((a: Attempt) => (
                 <tr key={a.id} className="border-b hover:bg-gray-50">
                   <td className="p-3">{a.id}</td>
                   <td className="p-3">{a.user?.name}</td>
