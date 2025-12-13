@@ -104,7 +104,6 @@ export default function LoginPage() {
       }
 
       setError("Unexpected response from server");
-
     } catch (err: any) {
       setError(err?.response?.data?.message || "Login failed");
     } finally {
@@ -115,31 +114,18 @@ export default function LoginPage() {
   return (
     <div className="bg-[#8db93f] min-h-screen flex items-center justify-center p-6">
       <div className="w-full max-w-md bg-[#108607] rounded-2xl shadow-xl p-10">
-
         {/* LOGO */}
         <div className="flex justify-center mb-6">
-          <Image
-            src="/logo/logould.png"
-            width={120}
-            height={120}
-            alt="Logo"
-            className="invert brightness-0"
-          />
+          <Image src="/logo/logould.png" width={120} height={120} alt="Logo" className="invert brightness-0" />
         </div>
 
-        <h1 className="text-3xl font-bold text-white text-center mb-2">
-          Welcome Back!
-        </h1>
+        <h1 className="text-3xl font-bold text-white text-center mb-2">Welcome Back!</h1>
 
-        <p className="text-white/90 text-center mb-8 px-4">
-          Please sign in to your account by completing the necessary fields below
-        </p>
+        <p className="text-white/90 text-center mb-8 px-4">Please sign in to your account by completing the necessary fields below</p>
 
         {/* FORM LOGIN */}
         <form onSubmit={handleLogin} className="mt-4">
-          <label className="text-white text-sm mb-2 block">
-            Nomor Registrasi
-          </label>
+          <label className="text-white text-sm mb-2 block">Nomor Registrasi</label>
           <input
             type="text"
             name="registrationNumber"
@@ -149,22 +135,13 @@ export default function LoginPage() {
             className="w-full px-4 py-3 mb-6 rounded-lg border border-white/60 bg-white/10 text-white placeholder-white/70 focus:border-white"
           />
 
-          {error && (
-            <p className="mb-3 text-center text-sm text-red-300">{error}</p>
-          )}
+          {error && <p className="mb-3 text-center text-sm text-red-300">{error}</p>}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-white text-[#108607] py-3 rounded-lg font-semibold hover:bg-gray-100 transition disabled:opacity-70 flex items-center justify-center gap-2"
-          >
+          <button type="submit" disabled={loading} className="w-full bg-white text-[#108607] py-3 rounded-lg font-semibold hover:bg-gray-100 transition disabled:opacity-70 flex items-center justify-center gap-2">
             Sign In
-            {loading && (
-              <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-solid border-[#108607] border-t-transparent" />
-            )}
+            {loading && <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-solid border-[#108607] border-t-transparent" />}
           </button>
         </form>
-
       </div>
     </div>
   );

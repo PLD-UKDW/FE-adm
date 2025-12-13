@@ -49,54 +49,54 @@
 
 
 
-"use client";
+// "use client";
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
+// import { useEffect, useState } from "react";
+// import Link from "next/link";
 
-type Attempt = { id: number; user: { id: number; name: string }; test: { id: number; title: string }; score?: number | null; completedAt?: string | null };
+// type Attempt = { id: number; user: { id: number; name: string }; test: { id: number; title: string }; score?: number | null; completedAt?: string | null };
 
-export default function Attempts() {
-  const [attempts, setAttempts] = useState<Attempt[]>([]);
-  const [loading, setLoading] = useState(true);
-  const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+// export default function Attempts() {
+//   const [attempts, setAttempts] = useState<Attempt[]>([]);
+//   const [loading, setLoading] = useState(true);
+//   const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const res = await fetch(`${API}/api/admin/attempts`);
-        if (!res.ok) throw new Error(await safeText(res));
-        const data = await res.json();
-        setAttempts(Array.isArray(data) ? data : []);
-      } catch (err) {
-        console.error("load attempts error:", err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    load();
-  }, [API]);
+//   useEffect(() => {
+//     async function load() {
+//       try {
+//         const res = await fetch(`${API}/api/admin/attempts`);
+//         if (!res.ok) throw new Error(await safeText(res));
+//         const data = await res.json();
+//         setAttempts(Array.isArray(data) ? data : []);
+//       } catch (err) {
+//         console.error("load attempts error:", err);
+//       } finally {
+//         setLoading(false);
+//       }
+//     }
+//     load();
+//   }, [API]);
 
-  if (loading) return <div className="p-6">Loading attempts...</div>;
+//   if (loading) return <div className="p-6">Loading attempts...</div>;
 
-  return (
-    <div className="p-6">
-      <h1 className="text-xl font-bold mb-4">Daftar Attempts</h1>
+//   return (
+//     <div className="p-6">
+//       <h1 className="text-xl font-bold mb-4">Daftar Attempts</h1>
 
-      {attempts.length === 0 && <p className="text-gray-500">Belum ada attempt.</p>}
-      <div className="space-y-2">
-        {attempts.map(a => (
-          <Link key={a.id} href={`/admin/attempts/${a.id}`} className="block p-4 border rounded hover:bg-gray-50">
-            <p className="font-bold">{a.user.name}</p>
-            <p className="text-sm">{a.test.title}</p>
-            <p className="text-sm text-gray-600">Score: {a.score ?? "Belum dinilai"}</p>
-          </Link>
-        ))}
-      </div>
-    </div>
-  );
-}
+//       {attempts.length === 0 && <p className="text-gray-500">Belum ada attempt.</p>}
+//       <div className="space-y-2">
+//         {attempts.map(a => (
+//           <Link key={a.id} href={`/admin/attempts/${a.id}`} className="block p-4 border rounded hover:bg-gray-50">
+//             <p className="font-bold">{a.user.name}</p>
+//             <p className="text-sm">{a.test.title}</p>
+//             <p className="text-sm text-gray-600">Score: {a.score ?? "Belum dinilai"}</p>
+//           </Link>
+//         ))}
+//       </div>
+//     </div>
+//   );
+// }
 
-async function safeText(res: Response) {
-  try { return await res.text(); } catch { return `HTTP ${res.status}`; }
-}
+// async function safeText(res: Response) {
+//   try { return await res.text(); } catch { return `HTTP ${res.status}`; }
+// }
