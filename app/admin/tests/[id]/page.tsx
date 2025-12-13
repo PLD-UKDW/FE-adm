@@ -19,6 +19,17 @@ export default function TestDetailPage() {
   const [answer, setAnswer] = useState("");
   const [autoScore, setAutoScore] = useState<string>("");
 
+  // =======================
+  // EDIT FORM STATE
+  // =======================
+  const [editing, setEditing] = useState(false);
+  const [editId, setEditId] = useState<number | null>(null);
+  const [editText, setEditText] = useState("");
+  const [editType, setEditType] = useState("MULTIPLE_CHOICE");
+  const [editOptions, setEditOptions] = useState<string[]>([]);
+  const [editAnswer, setEditAnswer] = useState("");
+  const [editScore, setEditScore] = useState("");
+
   async function fetchTest() {
     try {
       const res = await api.get(`/admin/tests/${id}`);
@@ -34,18 +45,46 @@ export default function TestDetailPage() {
     fetchTest();
   }, []);
 
+  function openEditModal(q: any) {
+    setEditId(q.id);
+    setEditText(q.text);
+    setEditType(q.questionType);
+    setEditOptions(Array.isArray(q.options) ? q.options : []);
+    setEditAnswer(q.answer || "");
+    setEditScore(String(q.autoScore || ""));
+    setEditing(true);
+  }
+
   // =======================
   // ADD QUESTION
   // =======================
+
+  async function handleUpdateQuestion() {
+    try {
+      await api.put(`/admin/questions/${editId}`, {
+        text: editText,
+        questionType: editType,
+        options: editType === "MULTIPLE_CHOICE" ? editOptions : [],
+        answer: editType === "MULTIPLE_CHOICE" ? editAnswer : null,
+        autoScore: editType === "MULTIPLE_CHOICE" ? Number(editScore || 1) : 0,
+      });
+
+      setEditing(false);
+      await fetchTest();
+    } catch (err) {
+      console.error("Update question error:", err);
+    }
+  }
+
   async function handleAddQuestion() {
     setAdding(true);
     try {
       await api.post(`/admin/tests/${id}/questions`, {
         text,
         questionType,
-        options: JSON.stringify(options),
+        options,
         answer,
-        autoScore: questionType === "MULTIPLE_CHOICE" ? Number(autoScore || 0) : 0,
+        autoScore: questionType === "MULTIPLE_CHOICE" ? Number(autoScore || 1) : 0,
       });
 
       setText("");
@@ -130,7 +169,13 @@ export default function TestDetailPage() {
             {options.map((opt, idx) => (
               <div key={idx} className="flex items-center gap-3">
                 {/* Radio Button */}
-                <input type="radio" name="correctAnswer" value={idx} checked={answer === idx.toString()} onChange={() => setAnswer(idx.toString())} className="h-4 w-4" />
+                <input
+                  type="radio"
+                  name="correctAnswer"
+                  value={String.fromCharCode(97 + idx)} // 'a', 'b', 'c', 'd'
+                  checked={answer === String.fromCharCode(97 + idx)}
+                  onChange={() => setAnswer(String.fromCharCode(97 + idx))}
+                />
 
                 {/* Input Text */}
                 <input
@@ -188,8 +233,8 @@ export default function TestDetailPage() {
                 <th className="p-3 text-left">ID</th>
                 <th className="p-3 text-left">Soal</th>
                 <th className="p-3 text-left">Tipe</th>
-                <th className="p-3 text-left">Aksi</th>
                 <th className="p-3 text-left">Skor</th>
+                <th className="p-3 text-left">Hapus</th>
               </tr>
             </thead>
             <tbody>
@@ -206,9 +251,11 @@ export default function TestDetailPage() {
 
                   {/* Skor */}
                   <td className="p-3">{q.autoScore}</td>
+                  <td className="p-3 space-x-3">
+                    <button onClick={() => openEditModal(q)} className="text-blue-600 underline">
+                      Edit
+                    </button>
 
-                  {/* Aksi */}
-                  <td className="p-3">
                     <button onClick={() => deleteQuestion(q.id)} className="text-red-600 underline">
                       Hapus
                     </button>
@@ -225,8 +272,85 @@ export default function TestDetailPage() {
               )}
             </tbody>
           </table>
+
+          {editing && (
+            <div className="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center p-4 z-50">
+              <div className="bg-white w-full max-w-lg p-6 rounded-lg space-y-4 shadow-xl">
+                <h2 className="text-xl font-semibold">Edit Soal</h2>
+
+                {/* TEXT */}
+                <div>
+                  <label className="font-medium">Teks Soal</label>
+                  <textarea className="w-full border p-2 rounded" value={editText} onChange={(e) => setEditText(e.target.value)} />
+                </div>
+
+                {/* TYPE */}
+                <div>
+                  <label className="font-medium">Tipe Soal</label>
+                  <select value={editType} onChange={(e) => setEditType(e.target.value)} className="border p-2 rounded w-full">
+                    <option value="MULTIPLE_CHOICE">Pilihan Ganda</option>
+                    <option value="ESSAY">Essay</option>
+                  </select>
+                </div>
+
+                {/* OPTIONS */}
+                {editType === "MULTIPLE_CHOICE" && (
+                  <div className="space-y-3">
+                    <label className="font-medium">Pilihan Jawaban</label>
+
+                    {editOptions.map((opt, idx) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        <input type="radio" name="editCorrect" value={String.fromCharCode(97 + idx)} checked={editAnswer === String.fromCharCode(97 + idx)} onChange={() => setEditAnswer(String.fromCharCode(97 + idx))} />
+
+                        <input
+                          className="border p-2 rounded w-full"
+                          value={opt}
+                          onChange={(e) => {
+                            const updated = [...editOptions];
+                            updated[idx] = e.target.value;
+                            setEditOptions(updated);
+                          }}
+                        />
+
+                        <button
+                          onClick={() => {
+                            const updated = editOptions.filter((_, i) => i !== idx);
+                            setEditOptions(updated);
+                          }}
+                          className="px-2 bg-red-500 text-white rounded"
+                        >
+                          X
+                        </button>
+                      </div>
+                    ))}
+
+                    <button onClick={() => setEditOptions([...editOptions, ""])} className="px-3 py-1 bg-gray-300 rounded">
+                      + Tambah Pilihan
+                    </button>
+
+                    {/* SCORE */}
+                    <div>
+                      <label className="font-medium">Skor</label>
+                      <input type="number" className="border p-2 rounded w-full" value={editScore} onChange={(e) => setEditScore(e.target.value)} />
+                    </div>
+                  </div>
+                )}
+
+                {/* ACTIONS */}
+                <div className="flex justify-end gap-3">
+                  <button onClick={() => setEditing(false)} className="px-4 py-2 bg-gray-300 rounded">
+                    Batal
+                  </button>
+                  <button onClick={handleUpdateQuestion} className="px-4 py-2 bg-blue-600 text-white rounded">
+                    Simpan
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
   );
 }
+
