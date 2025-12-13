@@ -68,6 +68,7 @@ export default function AdminDashboard() {
 
   if (UNDER_MAINTENANCE) {
     return <UnderDevelopment />;
+  }
   // =============================
   // CREATE TEST HANDLER
   // =============================
@@ -203,7 +204,6 @@ export default function AdminDashboard() {
             </thead>
 
             <tbody>
-              {tests.map((t: Test) => (
               {tests.map((t) => (
                 <tr key={t.id} className="border-b hover:bg-gray-50">
                   <td className="p-3">{t.id}</td>
@@ -254,16 +254,6 @@ export default function AdminDashboard() {
               const testAttempts = attempts.filter((a) => a.testId === t.id);
               const pending = testAttempts.filter((a) => !a.passStatus).length;
 
-            <tbody>
-              {attempts.map((a: Attempt) => (
-                <tr key={a.id} className="border-b hover:bg-gray-50">
-                  <td className="p-3">{a.id}</td>
-                  <td className="p-3">{a.user?.name}</td>
-                  <td className="p-3">{a.test?.title}</td>
-                  <td className="p-3">{a.score ?? "-"}</td>
-                  <td className="p-3">
-                    {a.passStatus ?? (
-                      <span className="text-gray-500">Belum dinilai</span>
               return (
                 <div
                   key={t.id}

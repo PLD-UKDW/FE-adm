@@ -37,7 +37,7 @@ export default function Sidebar() {
 
                 {/* Dashboard */}
                 <Link
-                    href="/dashboard"
+                    href="/admin/dashboard"
                     className={clsx(
                         "flex items-center gap-3 px-4 py-3 rounded-lg transition",
                         pathname === "/dashboard"
@@ -48,7 +48,7 @@ export default function Sidebar() {
                     <Home className="w-5 h-5" />
                     Dashboard
                 </Link>
-
+                
                 {/* INPUT MENU DROPDOWN */}
                 <div>
                     <button
