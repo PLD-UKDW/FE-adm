@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useRef, useState } from "react";
 import api from "@/lib/api";
-import { useRouter, useSearchParams } from "next/navigation";
 import axios from "axios";
+import { useRouter, useSearchParams } from "next/navigation";
+import React, { useRef, useState } from "react";
 
 export default function OTPPage() {
   const [otp, setOtp] = useState<string[]>(Array(6).fill(""));
@@ -55,6 +55,12 @@ export default function OTPPage() {
       });
 
       localStorage.setItem("token", res.data.token);
+
+      // Clear authStage cookie and set authToken + role for middleware
+      document.cookie = `authStage=; path=/; max-age=0`; // clear
+      document.cookie = `pendingRegNumber=; path=/; max-age=0`; // clear
+      document.cookie = `authToken=${res.data.token}; path=/; max-age=86400`; // 1 day
+      document.cookie = `role=ADMIN; path=/; max-age=86400`;
 
       router.push("/admin/dashboard");
     } catch (err: unknown) {

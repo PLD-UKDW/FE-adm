@@ -1,0 +1,50 @@
+/* TipTap Editor Styling */
+.ProseMirror {
+  outline: none;
+  min-height: 200px;
+}
+
+.ProseMirror p {
+  margin: 0.5rem 0;
+}
+
+.ProseMirror h1, 
+.ProseMirror h2, 
+.ProseMirror h3 {
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+  font-weight: bold;
+}
+
+.ProseMirror h1 { font-size: 2rem; }
+.ProseMirror h2 { font-size: 1.5rem; }
+.ProseMirror h3 { font-size: 1.25rem; }
+
+.ProseMirror ul, 
+.ProseMirror ol {
+  margin: 0.5rem 0;
+  padding-left: 1.5rem;
+}
+
+.ProseMirror li {
+  margin: 0.25rem 0;
+}
+
+/* Editor container border styling */
+.border.rounded-lg.overflow-hidden.bg-white {
+  border-color: #d1d5db;
+}
+
+.border-b {
+  border-bottom-color: #e5e7eb;
+}
+
+/* Button styling */
+button[type="button"] {
+  transition: all 0.2s ease;
+}
+
+button[type="button"]:hover {
+  opacity: 0.8;
+}
+
