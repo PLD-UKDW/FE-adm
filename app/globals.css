@@ -24,3 +24,29 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Quill editor image sizing to prevent oversized images in content field */
+.ql-container {
+  min-height: 200px;
+}
+
+.ql-editor {
+  min-height: 200px;
+}
+
+.ql-editor img {
+  max-width: 100%;
+  height: auto;
+  max-height: 360px;
+  object-fit: contain;
+  display: block;
+  margin: 8px 0;
+}
+
+/* Hide any inline SVG/shapes that may appear in the editor */
+.ql-editor svg,
+.ql-editor figure,
+.ql-editor path,
+.ql-editor polygon {
+  display: none !important;
+}

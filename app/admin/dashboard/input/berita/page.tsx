@@ -1,6 +1,7 @@
 "use client";
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
+import "quill/dist/quill.snow.css";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 const quillModulesConfig = {
   toolbar: [
@@ -56,6 +57,29 @@ export default function BeritaAdminPage() {
   const quillContainerRef = useRef<HTMLDivElement | null>(null);
   const quillInstanceRef = useRef<any>(null);
 
+  const sanitizeHtml = useCallback((html: string) => {
+    try {
+      if (!html) return html;
+      const temp = document.createElement("div");
+      temp.innerHTML = html;
+      temp.querySelectorAll("svg, figure, path, polygon").forEach((el) => el.remove());
+      temp.querySelectorAll("[style]").forEach((el) => {
+        const style = (el as HTMLElement).getAttribute("style") || "";
+        if (/clip-path|polygon\(/i.test(style)) {
+          (el as HTMLElement).style.clipPath = "";
+          (el as HTMLElement).style.removeProperty?.("clip-path");
+          (el as HTMLElement).setAttribute(
+            "style",
+            style.replace(/clip-path:[^;]*;?/gi, "")
+          );
+        }
+      });
+      return temp.innerHTML;
+    } catch {
+      return html;
+    }
+  }, []);
+
   const addToast = (message:string, type:"info"|"success"|"error"="info") => {
     const id = Date.now();
     setToasts(prev => [...prev, {id,message,type}]);
@@ -108,20 +132,34 @@ export default function BeritaAdminPage() {
         formats: quillFormats,
       });
       quillInstanceRef.current = q;
+      // Sanitize pasted content: drop SVG/FIGURE elements that can render odd shapes
+      try {
+        const Delta = (Quill as any).import && (Quill as any).import("delta");
+        const clipboard = q.getModule("clipboard");
+        if (clipboard && Delta) {
+          ["svg", "figure", "path", "polygon"].forEach((tag) => {
+            clipboard.addMatcher(tag, () => new Delta());
+          });
+        }
+      } catch {}
       q.on("text-change", () => {
         setContent(q.root.innerHTML);
       });
-      q.root.innerHTML = content || "";
+      q.root.innerHTML = sanitizeHtml(content || "");
     };
     init();
     return () => { mounted = false; quillInstanceRef.current = null; };
-  }, [quillModules, quillFormats]);
+  }, [quillModules, quillFormats, sanitizeHtml]);
 
   useEffect(() => {
-    if (quillInstanceRef.current && quillInstanceRef.current.root && quillInstanceRef.current.root.innerHTML !== content) {
-      quillInstanceRef.current.root.innerHTML = content || "";
+    if (quillInstanceRef.current && quillInstanceRef.current.root) {
+      const current = quillInstanceRef.current.root.innerHTML;
+      const next = sanitizeHtml(content || "");
+      if (current !== next) {
+        quillInstanceRef.current.root.innerHTML = next;
+      }
     }
-  }, [content]);
+  }, [content, sanitizeHtml]);
 
   const handleCreate = async (e:FormEvent) => {
     e.preventDefault();
@@ -245,8 +283,10 @@ export default function BeritaAdminPage() {
                 {imageFiles.map((file, idx) => (
                   <div key={idx} className="relative">
                     <Image
-                      src={URL.createObjectURL(file)} 
+                      src={URL.createObjectURL(file)}
                       alt={`preview-${idx}`}
+                      width={80}
+                      height={80}
                       className="w-20 h-20 object-cover rounded border"
                     />
                     <button

@@ -9,6 +9,9 @@ export default function OTPPage() {
   const [otp, setOtp] = useState<string[]>(Array(6).fill(""));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [resendLoading, setResendLoading] = useState(false);
+  const [info, setInfo] = useState("");
+  const [cooldown, setCooldown] = useState(0);
 
   const inputsRef = useRef<HTMLInputElement[]>([]);
   const router = useRouter();
@@ -74,6 +77,38 @@ export default function OTPPage() {
     }
   };
 
+  const handleResend = async () => {
+    if (!registrationNumber) {
+      setError("Nomor registrasi tidak ditemukan.");
+      return;
+    }
+    if (cooldown > 0) return;
+
+    setResendLoading(true);
+    setError("");
+    setInfo("");
+    try {
+      await api.post("/api/resend-otp", { registrationNumber });
+      setInfo("OTP telah dikirim ulang. Periksa email Anda.");
+      // start 30s cooldown
+      setCooldown(30);
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        setError(err.response?.data?.message || "Gagal mengirim ulang OTP.");
+      } else {
+        setError("Terjadi kesalahan tidak terduga.");
+      }
+    } finally {
+      setResendLoading(false);
+    }
+  };
+
+  React.useEffect(() => {
+    if (cooldown <= 0) return;
+    const t = setInterval(() => setCooldown((c) => c - 1), 1000);
+    return () => clearInterval(t);
+  }, [cooldown]);
+
   return (
     <div className="flex items-center justify-center min-h-screen bg-[#108607] p-4">
       <div className="bg-white rounded-2xl shadow-xl p-10 w-full max-w-md text-center">
@@ -85,6 +120,7 @@ export default function OTPPage() {
         </p>
 
         {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
+        {info && <p className="text-green-600 text-sm mb-4">{info}</p>}
 
         {/* OTP INPUT BOXES */}
         <div className="flex justify-center gap-4 mb-8">
@@ -117,8 +153,16 @@ export default function OTPPage() {
           {loading ? "Memverifikasi..." : "Verifikasi"}
         </button>
 
-        <button className="mt-4 text-sm text-[#108607] hover:underline">
-          Kirim ulang OTP
+        <button
+          onClick={handleResend}
+          disabled={resendLoading || cooldown > 0}
+          className="mt-4 text-sm text-[#108607] hover:underline disabled:opacity-50"
+        >
+          {resendLoading
+            ? "Mengirim..."
+            : cooldown > 0
+            ? `Kirim ulang dalam ${cooldown}s`
+            : "Kirim ulang OTP"}
         </button>
       </div>
     </div>
