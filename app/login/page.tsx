@@ -101,7 +101,8 @@ export default function LoginPage() {
         if (role === "ADMIN") {
           router.push("/admin/dashboard");
         } else {
-          router.push("/dashboard/camaba");
+          // Redirect non-admin users back to FrontEnd Digital Literacy Test
+          window.location.href = "http://localhost:3000/digital-literacy-test";
         }
         return;
       }

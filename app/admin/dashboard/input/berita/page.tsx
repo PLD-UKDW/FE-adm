@@ -1,5 +1,7 @@
 "use client";
+import { ArrowLeft } from "lucide-react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import "quill/dist/quill.snow.css";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -38,6 +40,7 @@ const quillFormatsConfig = [
 ];
 
 export default function BeritaAdminPage() {
+  const router = useRouter();
   const [token, setToken] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [categoryId, setCategoryId] = useState<string>("");
@@ -50,7 +53,8 @@ export default function BeritaAdminPage() {
   const [isPublished, setIsPublished] = useState(false);
   const [saving, setSaving] = useState(false);
   const [toasts, setToasts] = useState<{ id: number; message: string; type: "info"|"success"|"error" }[]>([]);
-  const [list, setList] = useState<Array<{id:number; title:string; category?:{id:number; name:string}|null; isPublished:boolean; createdAt:string; tanggal?:string|null; lokasi?:string|null}>>([]);
+  const [list, setList] = useState<Array<{id:number; title:string; category?:{id:number; name:string}|null; isPublished:boolean; createdAt:string; tanggal?:string|null; lokasi?:string|null; content?:string; content_images?:string}>>([]);
+  const [editingId, setEditingId] = useState<number | null>(null);
   
   const quillModules = useMemo(() => quillModulesConfig, []);
   const quillFormats = useMemo(() => quillFormatsConfig, []);
@@ -179,19 +183,73 @@ export default function BeritaAdminPage() {
         formData.append("content_images", file);
       });
 
-      const res = await fetch("http://localhost:4000/api/create-berita", {
-        method: "POST",
+      const url = editingId 
+        ? `http://localhost:4000/api/update-berita/${editingId}` 
+        : "http://localhost:4000/api/create-berita";
+      const method = editingId ? "PUT" : "POST";
+
+      const res = await fetch(url, {
+        method,
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
       });
       const body = await res.json();
-      console.log("Create berita response:", body);
-      if(!res.ok){ addToast(body?.message||"Gagal membuat berita", "error"); return; }
-      addToast("Berita berhasil dibuat", "success");
-      setTitle(""); setContent(""); setCategoryId(""); setTanggal(""); setLokasi(""); setImageFiles([]); setIsPublished(false);
+      console.log(`${editingId ? 'Update' : 'Create'} berita response:`, body);
+      if(!res.ok){ addToast(body?.message||`Gagal ${editingId ? 'mengupdate' : 'membuat'} berita`, "error"); return; }
+      addToast(`Berita berhasil ${editingId ? 'diupdate' : 'dibuat'}`, "success");
+      resetForm();
       fetchList();
-    } catch { addToast("Error saat membuat berita", "error"); }
+    } catch { addToast(`Error saat ${editingId ? 'mengupdate' : 'membuat'} berita`, "error"); }
     finally { setSaving(false); }
+  };
+
+  const resetForm = () => {
+    setTitle(""); 
+    setContent(""); 
+    setCategoryId(""); 
+    setTanggal(""); 
+    setLokasi(""); 
+    setImageFiles([]); 
+    setIsPublished(false);
+    setEditingId(null);
+    if (quillInstanceRef.current) {
+      quillInstanceRef.current.root.innerHTML = "";
+    }
+  };
+
+  const handleEdit = async (id: number) => {
+    if (!token) return;
+    try {
+      const res = await fetch(`http://localhost:4000/api/berita-admin/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const body = await res.json();
+      if (!res.ok) {
+        addToast(body?.message || "Gagal memuat berita", "error");
+        return;
+      }
+      
+      // Populate form with existing data
+      setEditingId(id);
+      setTitle(body.title || "");
+      setContent(body.content || "");
+      setCategoryId(body.categoryId ? String(body.categoryId) : "");
+      setTanggal(body.tanggal ? new Date(body.tanggal).toISOString().split('T')[0] : "");
+      setLokasi(body.lokasi || "");
+      setIsPublished(body.isPublished || false);
+      setImageFiles([]);
+      
+      // Update Quill editor
+      if (quillInstanceRef.current) {
+        quillInstanceRef.current.root.innerHTML = sanitizeHtml(body.content || "");
+      }
+      
+      // Scroll to form
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      addToast("Mode Edit - Silakan ubah data dan simpan", "info");
+    } catch {
+      addToast("Error memuat data berita", "error");
+    }
   };
 
   const handleAddCategory = async (e:FormEvent) => {
@@ -239,10 +297,30 @@ export default function BeritaAdminPage() {
 
   return (
     <div className="p-6 max-w-5xl mx-auto text-black">
-      <h1 className="text-2xl font-bold mb-4">Input Berita</h1>
+      <div className="flex items-center gap-4 mb-4">
+        <button
+          onClick={() => router.back()}
+          className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+        >
+          <ArrowLeft className="w-5 h-5" />
+          <span>Kembali</span>
+        </button>
+        <h1 className="text-2xl font-bold">Input Berita</h1>
+      </div>
 
       <form onSubmit={handleCreate} className="bg-white p-5 rounded-lg shadow mb-6">
-        <h2 className="text-lg font-semibold mb-3">Buat Berita</h2>
+        <div className="flex justify-between items-center mb-3">
+          <h2 className="text-lg font-semibold">{editingId ? 'Edit Berita' : 'Buat Berita'}</h2>
+          {editingId && (
+            <button
+              type="button"
+              onClick={resetForm}
+              className="px-3 py-1 bg-gray-500 text-white rounded text-sm"
+            >
+              Batal Edit
+            </button>
+          )}
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
             <label className="block text-sm font-medium">Judul</label>
@@ -315,7 +393,7 @@ export default function BeritaAdminPage() {
         </div>
         <div className="mt-4">
           <button type="submit" disabled={saving} className="px-4 py-2 bg-blue-600 text-white rounded">
-            {saving?"Menyimpan...":"Simpan"}
+            {saving ? "Menyimpan..." : editingId ? "Update Berita" : "Simpan"}
           </button>
         </div>
       </form>
@@ -364,12 +442,18 @@ export default function BeritaAdminPage() {
                   <td className="px-3 py-2">{item.isPublished?"Published":"Draft"}</td>
                   <td className="px-3 py-2">
                     <div className="flex gap-2">
+                      <button 
+                        className="px-3 py-1 bg-yellow-500 text-white rounded hover:bg-yellow-600" 
+                        onClick={() => handleEdit(item.id)}
+                      >
+                        Edit
+                      </button>
                       {item.isPublished ? (
                         <button className="px-3 py-1 border rounded" onClick={()=>togglePublish(item.id,false)}>Unpublish</button>
                       ) : (
                         <button className="px-3 py-1 border rounded" onClick={()=>togglePublish(item.id,true)}>Publish</button>
                       )}
-                      <button className="px-3 py-1 border rounded" onClick={()=>deleteItem(item.id)}>Delete</button>
+                      <button className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600" onClick={()=>deleteItem(item.id)}>Delete</button>
                     </div>
                   </td>
                 </tr>
