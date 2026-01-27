@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 
 const hasSpeech = typeof window !== "undefined" && "speechSynthesis" in window;
-const synth = hasSpeech && typeof window !== "undefined" ? (window as any).speechSynthesis as SpeechSynthesis : null;
+const synth = hasSpeech && typeof window !== "undefined" ? ((window as any).speechSynthesis as SpeechSynthesis) : null;
 
 export function speak(text: string, options?: { lang?: string; rate?: number; pitch?: number; voiceURI?: string }) {
   if (!synth) return;
@@ -145,11 +145,7 @@ export default function TTSControl() {
       </div>
 
       <div className="flex gap-2 mt-3">
-        <button
-          onClick={() => resume()}
-          className="px-3 py-1 bg-blue-600 text-white rounded text-sm"
-          aria-label="Lanjutkan pembacaan"
-        >
+        <button onClick={() => resume()} className="px-3 py-1 bg-blue-600 text-white rounded text-sm" aria-label="Lanjutkan pembacaan">
           Resume
         </button>
         <button onClick={() => pause()} className="px-3 py-1 bg-yellow-500 text-white rounded text-sm" aria-label="Jeda pembacaan">
