@@ -3,7 +3,7 @@ import { ArrowLeft } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import "quill/dist/quill.snow.css";
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 const quillModulesConfig = {
   toolbar: [
@@ -60,7 +60,9 @@ export default function BeritaAdminPage() {
   const quillModules = useMemo(() => quillModulesConfig, []);
   const quillFormats = useMemo(() => quillFormatsConfig, []);
   const quillContainerRef = useRef<HTMLDivElement | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const quillInstanceRef = useRef<any>(null);
+  const newImageInputRef = useRef<HTMLInputElement | null>(null);
 
   const sanitizeHtml = useCallback((html: string) => {
     try {
@@ -91,12 +93,43 @@ export default function BeritaAdminPage() {
     setTimeout(()=> setToasts(prev => prev.filter(t=>t.id!==id)), 3500);
   };
 
+  const onNewImagesChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const incoming = Array.from(e.target.files || []);
+    if (incoming.length === 0) return;
+    setImageFiles((prev) => {
+      const byKey = new Map<string, File>();
+      const add = (f: File) => {
+        const key = `${f.name}-${f.size}-${f.lastModified}`;
+        if (!byKey.has(key)) byKey.set(key, f);
+      };
+      prev.forEach(add);
+      incoming.forEach(add);
+      return Array.from(byKey.values());
+    });
+    if (newImageInputRef.current) newImageInputRef.current.value = "";
+  };
+
+  const removeNewImage = (index: number) => {
+    setImageFiles((prev) => prev.filter((_, i) => i !== index));
+    if (newImageInputRef.current) newImageInputRef.current.value = "";
+  };
+
+  // Safely parse JSON; fallback to text message to avoid HTML parse errors
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const parseJSON = useCallback(async (res: Response): Promise<any> => {
+    const ct = res.headers.get("content-type") || "";
+    if (ct.includes("application/json")) {
+      try { return await res.json(); } catch { return { message: "Invalid JSON from server" }; }
+    }
+    try { const text = await res.text(); return { message: text }; } catch { return { message: "Response parse error" }; }
+  }, []);
+
   useEffect(()=>{ setToken(localStorage.getItem("token")); },[]);
 
   const fetchCategories = useCallback(async()=>{
     try {
       const res = await fetch("http://localhost:4000/api/berita-categories");
-      const body = await res.json();
+      const body = await parseJSON(res);
       console.log("Categories fetched:", body);
       if(!res.ok){ addToast(body?.message||"Gagal memuat kategori", "error"); return; }
       setCategories(Array.isArray(body) ? body : []);
@@ -104,7 +137,7 @@ export default function BeritaAdminPage() {
       console.error("Error fetching categories:", err);
       addToast("Gagal memuat kategori", "error");
     }
-  }, []);
+  }, [parseJSON]);
 
   const fetchList = useCallback(async ()=>{
     if(!token) return;
@@ -112,11 +145,11 @@ export default function BeritaAdminPage() {
       const res = await fetch("http://localhost:4000/api/berita-admin", {
         headers: { Authorization: `Bearer ${token}` },
       });
-      const body = await res.json();
+      const body = await parseJSON(res);
       if(!res.ok){ addToast(body?.message||"Gagal memuat berita", "error"); return; }
       setList(body.data || []);
     } catch { addToast("Gagal memuat berita", "error"); }
-  },[token]);
+  },[token, parseJSON]);
 
   useEffect(()=>{
     fetchCategories();
@@ -129,14 +162,15 @@ export default function BeritaAdminPage() {
   useEffect(() => {
     let mounted = true;
     const init = async () => {
-      const Quill = (await import("quill")).default;
+      const QuillModule = (await import("quill")).default;
       if (!mounted || !quillContainerRef.current) return;
       
       if (quillInstanceRef.current) {
         quillInstanceRef.current = null;
       }
       
-      const q = new Quill(quillContainerRef.current, {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const q = new (QuillModule as any)(quillContainerRef.current, {
         theme: "snow",
         modules: quillModules,
         formats: quillFormats,
@@ -145,18 +179,13 @@ export default function BeritaAdminPage() {
       quillInstanceRef.current = q;
       // Sanitize pasted content: drop SVG/FIGURE elements that can render odd shapes
       try {
-        const Delta = (Quill as any).import && (Quill as any).import("delta");
         const clipboard = q.getModule("clipboard");
-        if (clipboard && Delta) {
+        if (clipboard) {
           ["svg", "figure", "path", "polygon"].forEach((tag) => {
-            clipboard.addMatcher(tag, () => new Delta());
+            clipboard.addMatcher(tag, () => ({ ops: [] }));
           });
         }
       } catch {}
-      
-            if (content) {
-              q.root.innerHTML = sanitizeHtml(content);
-            }
       
       q.on("text-change", () => {
         setContent(q.root.innerHTML);
@@ -209,15 +238,16 @@ export default function BeritaAdminPage() {
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
       });
-      const body = await res.json();
+      const body = await parseJSON(res);
       console.log(`${editingId ? 'Update' : 'Create'} berita response:`, body);
       if(!res.ok){ addToast(body?.message||`Gagal ${editingId ? 'mengupdate' : 'membuat'} berita`, "error"); return; }
       addToast(`Berita berhasil ${editingId ? 'diupdate' : 'dibuat'}`, "success");
       resetForm();
       fetchList();
-    } catch (err: any) { 
+    } catch (err) { 
       console.error(err);
-      addToast(`Error saat ${editingId ? 'mengupdate' : 'membuat'} berita: ${err.message}`, "error"); 
+      const error = err as Error;
+      addToast(`Error saat ${editingId ? 'mengupdate' : 'membuat'} berita: ${error.message}`, "error"); 
     }
     finally { setSaving(false); }
   };
@@ -243,7 +273,7 @@ export default function BeritaAdminPage() {
       const res = await fetch(`http://localhost:4000/api/berita-admin/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      const body = await res.json();
+      const body = await parseJSON(res);
       if (!res.ok) {
         addToast(body?.message || "Gagal memuat berita", "error");
         return;
@@ -258,7 +288,7 @@ export default function BeritaAdminPage() {
       setLokasi(body.lokasi || "");
       setIsPublished(body.isPublished || false);
       
-            const imgs = body.content_images 
+            const imgs = body.content_images
               ? body.content_images.split(',').map((img: string) => img.trim()).filter((img: string) => img)
               : [];
             setExistingImages(imgs);
@@ -273,9 +303,22 @@ export default function BeritaAdminPage() {
       // Scroll to form
       window.scrollTo({ top: 0, behavior: 'smooth' });
       addToast("Mode Edit - Silakan ubah data dan simpan", "info");
-    } catch (err: any) {
-      addToast("Error memuat data berita: " + err.message, "error");
+    } catch (err) {
+      const error = err as Error;
+      addToast("Error memuat data berita: " + error.message, "error");
     }
+  };
+
+  const removeExistingImage = (index: number) => {
+    setExistingImages(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const getImageSrc = (img: string): string => {
+    const trimmed = (img || "").trim();
+    if (!trimmed) return "";
+    if (/^https?:\/\//i.test(trimmed)) return trimmed;
+    const cleaned = trimmed.replace(/^uploads[\\/]+berita[\\/]+/i, "");
+    return `http://localhost:4000/uploads/berita/${cleaned}`;
   };
 
   const handleAddCategory = async (e:FormEvent) => {
@@ -290,7 +333,7 @@ export default function BeritaAdminPage() {
         },
         body: JSON.stringify({ name: newCategory.trim() }),
       });
-      const body = await res.json();
+      const body = await parseJSON(res);
       if(!res.ok){ addToast(body?.message||"Gagal menambah kategori", "error"); return; }
       addToast("Kategori ditambahkan", "success");
       setNewCategory("");
@@ -303,7 +346,7 @@ export default function BeritaAdminPage() {
     try {
       const url = publish ? `http://localhost:4000/api/publish-berita/${id}` : `http://localhost:4000/api/unpublish-berita/${id}`;
       const res = await fetch(url, { method: "PUT", headers: { Authorization: `Bearer ${token}` } });
-      const body = await res.json();
+      const body = await parseJSON(res);
       if(!res.ok){ addToast(body?.message||"Gagal update publish", "error"); return; }
       addToast(publish?"Dipublikasikan":"Disembunyikan", "success");
       fetchList();
@@ -315,7 +358,11 @@ export default function BeritaAdminPage() {
     if(!confirm("Yakin hapus berita?")) return;
     try {
       const res = await fetch(`http://localhost:4000/api/delete-berita/${id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
-      if(!res.ok){ addToast("Gagal menghapus", "error"); return; }
+      if(!res.ok){
+        const body = await parseJSON(res);
+        addToast(body?.message||"Gagal menghapus", "error");
+        return;
+      }
       addToast("Berita dihapus", "success");
       fetchList();
     } catch { addToast("Error menghapus", "error"); }
@@ -373,38 +420,6 @@ export default function BeritaAdminPage() {
               <div ref={quillContainerRef} className="min-h-[200px]" />
             </div>
           </div>
-          <div>
-            <label className="block text-sm font-medium">Gambar Konten (bisa multiple)</label>
-            <input 
-              type="file" 
-              accept="image/*" 
-              multiple
-              className="mt-1 w-full" 
-              onChange={e=> setImageFiles(Array.from(e.target.files || []))} 
-            />
-            {imageFiles.length > 0 && (
-              <div className="mt-2 flex flex-wrap gap-2">
-                {imageFiles.map((file, idx) => (
-                  <div key={idx} className="relative">
-                    <Image
-                      src={URL.createObjectURL(file)}
-                      alt={`preview-${idx}`}
-                      width={80}
-                      height={80}
-                      className="w-20 h-20 object-cover rounded border"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setImageFiles(imageFiles.filter((_, i) => i !== idx))}
-                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm"
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
           {existingImages.length > 0 && (
             <div className="md:col-span-2">
               <label className="block text-sm font-medium mb-2">Gambar Saat Ini</label>
@@ -412,10 +427,11 @@ export default function BeritaAdminPage() {
                 {existingImages.map((img, idx) => (
                   <div key={idx} className="relative group">
                     <Image
-                      src={`http://localhost:4000/uploads/berita/${img}`}
+                      src={getImageSrc(img)}
                       alt={`existing-${idx}`}
                       width={100}
                       height={100}
+                      unoptimized
                       className="w-24 h-24 object-cover rounded border-2 border-blue-300"
                       onError={() => console.error(`Failed to load image: ${img}`)}
                     />
@@ -438,11 +454,12 @@ export default function BeritaAdminPage() {
           <div className="md:col-span-2">
             <label className="block text-sm font-medium">Gambar Konten {editingId && existingImages.length === 0 ? "(Wajib - gambar lama akan dihapus)" : "(bisa multiple)"}</label>
             <input 
+              ref={newImageInputRef}
               type="file" 
               accept="image/*" 
               multiple
               className="mt-1 w-full" 
-              onChange={e=> setImageFiles(Array.from(e.target.files || []))} 
+              onChange={onNewImagesChange}
             />
             {imageFiles.length > 0 && (
               <div className="mt-2">
@@ -459,7 +476,7 @@ export default function BeritaAdminPage() {
                       />
                       <button
                         type="button"
-                        onClick={() => setImageFiles(imageFiles.filter((_, i) => i !== idx))}
+                        onClick={() => removeNewImage(idx)}
                         className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm"
                       >
                         ×

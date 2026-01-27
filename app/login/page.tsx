@@ -65,6 +65,7 @@ import api from "@/lib/api";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import React, { useState } from "react";
+const FRONTEND_URL = process.env.NEXT_PUBLIC_FRONTEND_URL || "http://localhost:3001";
 
 export default function LoginPage() {
   const [registrationNumber, setRegistrationNumber] = useState("");
@@ -102,14 +103,19 @@ export default function LoginPage() {
           router.push("/admin/dashboard");
         } else {
           // Redirect non-admin users back to FrontEnd Digital Literacy Test
-          window.location.href = "http://localhost:3000/digital-literacy-test";
+          window.location.href = "http://localhost:3000/dashboard/camaba";
         }
         return;
       }
 
       setError("Unexpected response from server");
-    } catch (err: any) {
-      setError(err?.response?.data?.message || "Login failed");
+    } catch (err: unknown) {
+      let message = "Login failed";
+      if (typeof err === "object" && err !== null) {
+        const maybeResp = err as { response?: { data?: { message?: string } } };
+        message = maybeResp.response?.data?.message || (err instanceof Error ? err.message : message);
+      }
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -144,6 +150,19 @@ export default function LoginPage() {
           <button type="submit" disabled={loading} className="w-full bg-white text-[#108607] py-3 rounded-lg font-semibold hover:bg-gray-100 transition disabled:opacity-70 flex items-center justify-center gap-2">
             Sign In
             {loading && <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-solid border-[#108607] border-t-transparent" />}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              // clear pending cookies if any
+              document.cookie = "authStage=; Max-Age=0; path=/";
+              document.cookie = "pendingRegNumber=; Max-Age=0; path=/";
+              window.location.href = FRONTEND_URL;
+            }}
+            className="mt-3 w-full border border-white/60 text-white py-3 rounded-lg font-semibold hover:bg-white/10 transition"
+          >
+            Kembali ke Halaman Utama
           </button>
         </form>
       </div>
