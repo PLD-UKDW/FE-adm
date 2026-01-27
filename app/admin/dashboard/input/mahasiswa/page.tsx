@@ -1,31 +1,11 @@
 "use client";
 declare global {
     interface Window {
-        XLSX: any;
+        XLSX: unknown;
     }
 }
 import api from "@/lib/api";
 import { useCallback, useEffect, useState } from 'react';
-// import * as XLSX from "xlsx";
-
-
-// - Form to create / update mahasiswa with dropdowns (provinsi, jalur_masuk, status, asal_sekolah, fakultas, prodi, kategoriDisabilitas)
-// - Dependent prodi list based on selected fakultas
-// - Categories are multi-select; when saved, table shows BOTH jenisDisabilitas and kategoriDisabilitas (jenisDisabilitas derived from kategoriDisabilitas mapping)
-// - Table below shows: nim, nama, gender, jenisDisabilitas (if multiple -> "Ganda" per user's backend), kategoriDisabilitas (comma separated), fakultas, prodi, angkatan, status, actions (update/delete)
-// - Search / filter, pagination (server-style placeholders), loading states, toast notifications, export to CSV/Excel
-// - Uses simple custom Toast implementation (no external toast lib)
-// - Notes: replace placeholder API endpoints with your real backend endpoints.
-
-const kategoriDisabilitas_TO_jenisDisabilitas: Record<string, string> = {
-    'Tuna Daksa': 'Fisik',
-    'Cerebral Palsy': 'Fisik',
-    'Amputasi': 'Fisik',
-    'Kelumpuhan': 'Fisik',
-    'Low Vision': 'Sensorik (Visual)',
-    'Blind': 'Sensorik (Visual)',
-    'Hearing Impaired': 'Sensorik (Auditori)',
-};
 
 const PROVINSI_OPTIONS = [
     'Aceh',
@@ -70,7 +50,6 @@ const PROVINSI_OPTIONS = [
 const JALUR_OPTIONS = ['Mandiri', 'SNMPTN', 'SBMPTN', 'Undangan'];
 const STATUS_OPTIONS = ['aktif', 'undur diri', 'lulus'];
 const ASAL_SEKOLAH_OPTIONS = ['SLB', 'NonSLB', 'HomeSchooling', 'Sarjana'];
-const kategoriDisabilitas_OPTIONS = Object.keys(kategoriDisabilitas_TO_jenisDisabilitas);
 type Fakultas = {
     id: number;
     nama: string;
@@ -89,6 +68,8 @@ export default function MahasiswaForm() {
     }, []);
     const [fakultasList, setFakultasList] = useState<Fakultas[]>([]);
     const [prodiList, setProdiList] = useState<Prodi[]>([]);
+    const [kategoriOptions, setKategoriOptions] = useState<string[]>([]);
+    const [angkatanList, setAngkatanList] = useState<number[]>([]);
     const [form, setForm] = useState<{
         nama: string;
         nim: string;
@@ -127,6 +108,10 @@ export default function MahasiswaForm() {
     const [totalPages] = useState(1);
     const [search, setSearch] = useState('');
     const [filterStatus, setFilterStatus] = useState('');
+    const [filterAngkatan, setFilterAngkatan] = useState<string>('');
+    const [filterFakultasId, setFilterFakultasId] = useState<number | ''>('');
+    const [filterProdiId, setFilterProdiId] = useState<number | ''>('');
+    const [filterProdiList, setFilterProdiList] = useState<Prodi[]>([]);
     const [editingId, setEditingId] = useState<number | null>(null);
 
     // toast state
@@ -167,6 +152,58 @@ export default function MahasiswaForm() {
         fetchFakultas();
     }, [fetchFakultas]);
 
+    // Filter Prodi loader (depends on filterFakultasId)
+    const fetchFilterProdi = useCallback(
+        async (fId: number) => {
+            try {
+                const res = await api.get(`/api/prodi?fakultasId=${fId}`);
+                setFilterProdiList(res.data);
+            } catch {
+                addToast("Gagal memuat prodi (filter)", "error");
+            }
+        }, []);
+
+    useEffect(() => {
+        if (filterFakultasId) {
+            fetchFilterProdi(Number(filterFakultasId));
+        } else {
+            setFilterProdiList([]);
+            setFilterProdiId('');
+        }
+    }, [filterFakultasId, fetchFilterProdi]);
+
+    const fetchKategori = useCallback(async () => {
+        if (!token) return;
+        try {
+            const res = await api.get("/api/kategori-disabilitas", {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            setKategoriOptions(res.data || []);
+        } catch {
+            addToast("Gagal memuat kategori disabilitas", "error");
+        }
+    }, [token]);
+
+    useEffect(() => {
+        fetchKategori();
+    }, [fetchKategori]);
+
+    const fetchAngkatan = useCallback(async () => {
+        if (!token) return;
+        try {
+            const res = await api.get("/api/angkatan", {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            setAngkatanList(res.data || []);
+        } catch {
+            addToast("Gagal memuat daftar angkatan", "error");
+        }
+    }, [token]);
+
+    useEffect(() => {
+        fetchAngkatan();
+    }, [fetchAngkatan]);
+
     const fetchProdi = useCallback(
         async (fakultasId: number) => {
             try {
@@ -185,10 +222,26 @@ export default function MahasiswaForm() {
         }, [form.fakultas_id, fetchProdi]);
 
     const fetchRows = useCallback(async () => {
-        if(!token) return;
+        if(!token) {
+            return;
+        }
         setLoading(true);
         try {
-            const res = await fetch("http://localhost:4000/api/mahasiswa", {headers: { Authorization: `Bearer ${token}`,},});
+            const params = new URLSearchParams();
+            if (search) params.append('search', search);
+            if (filterStatus) params.append('status', filterStatus);
+            if (filterAngkatan) params.append('angkatan', String(filterAngkatan));
+            if (filterFakultasId) params.append('fakultasId', String(filterFakultasId));
+            if (filterProdiId) params.append('prodiId', String(filterProdiId));
+            const url = `http://localhost:4000/api/mahasiswa?${params.toString()}`;
+            const res = await fetch(url, {headers: { Authorization: `Bearer ${token}`,},});
+            if (!res.ok) {
+                let body: { message?: string } = {};
+                try { body = await res.json(); } catch {}
+                console.error('FETCH mahasiswa failed', res.status, body);
+                addToast(body.message ? `${body.message} (status ${res.status})` : `Gagal memuat mahasiswa (status ${res.status})`, 'error');
+                return;
+            }
             const data = await res.json();
             type MahasiswaResponse = {
                 id: number;
@@ -235,7 +288,7 @@ export default function MahasiswaForm() {
         } finally {
             setLoading(false);
         }
-    }, [token]);
+    }, [token, search, filterStatus, filterAngkatan, filterFakultasId, filterProdiId]);
     useEffect(() => {
         fetchRows();
     }, [fetchRows]);
@@ -266,11 +319,26 @@ export default function MahasiswaForm() {
         setSaving(true);
 
         try {
+            if (!form.kategoriDisabilitas || form.kategoriDisabilitas.length === 0) {
+                addToast("Kategori disabilitas wajib dipilih", "error");
+                setSaving(false);
+                return;
+            }
             const payload = {
-                ...form,
+                // kirim field sesuai ekspektasi backend
+                nama: form.nama,
+                nim: form.nim,
+                provinsi: form.provinsi,
+                angkatan: form.angkatan,
+                jalur_masuk: form.jalur_masuk,
+                status: form.status,
+                jenjang: form.jenjang,
+                gender: form.gender,
+                asal_sekolah: form.asal_sekolah,
                 ipk: Number(form.ipk),
                 fakultas_id: Number(form.fakultas_id),
                 prodi_id: Number(form.prodi_id),
+                kategori: form.kategoriDisabilitas,
             };
 
             let res;
@@ -333,26 +401,48 @@ export default function MahasiswaForm() {
 
     const handleEdit = async (row: RowData) => {
         try {
-            const res = await fetch(`http://localhost:4000/api/mahasiswa/${row.id}`);
+            const res = await fetch(`http://localhost:4000/api/mahasiswa/${row.id}`, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+            });
             const data = await res.json();
 
             setEditingId(row.id);
 
+            // Load prodi list if fakultas is selected
+            if (data.fakultas_id) {
+                const prodiRes = await fetch(`http://localhost:4000/api/prodi?fakultas_id=${data.fakultas_id}`, {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    },
+                });
+                const prodiData = await prodiRes.json();
+                setProdiList(Array.isArray(prodiData) ? prodiData : []);
+            } else {
+                setProdiList([]);
+            }
+
+            console.log('Data from backend:', data);
+            console.log('Provinsi value:', data.provinsi);
+
             setForm({
-                nama: data.nama,
-                nim: data.nim,
-                provinsi: data.provinsi,
-                angkatan: data.angkatan,
-                jalur_masuk: data.jalur_masuk,
-                status: data.status,
-                jenjang: data.jenjang,
-                gender: data.gender,
-                asal_sekolah: data.asal_sekolah,
-                ipk: data.ipk,
-                fakultas_id: data.fakultas_id,
-                prodi_id: data.prodi_id,
-                kategoriDisabilitas: data.kategoriDisabilitas,
+                nama: data.nama || '',
+                nim: data.nim || '',
+                provinsi: data.provinsi || '',
+                angkatan: data.angkatan || new Date().getFullYear(),
+                jalur_masuk: data.jalur_masuk || '',
+                status: data.status || 'aktif',
+                jenjang: data.jenjang || 'S1',
+                gender: data.gender || 'P',
+                asal_sekolah: data.asal_sekolah || 'NonSLB',
+                ipk: data.ipk || '',
+                fakultas_id: data.fakultas_id || '',
+                prodi_id: data.prodi_id || '',
+                kategoriDisabilitas: data.kategoriDisabilitas || [],
             });
+
+            console.log('Form after setForm:', form);
 
             setIsEdit(true);
         } catch {
@@ -407,7 +497,7 @@ export default function MahasiswaForm() {
         const headers = ['nim', 'nama', 'gender', 'jenisDisabilitas', 'kategoriDisabilitas', 'fakultas', 'prodi', 'angkatan', 'status'];
         const lines = [headers.join(',')];
         for (const r of inputRows) {
-            const jenisDisabilitas = computejenisDisabilitasFromkategoriDisabilitas(r.kategoriDisabilitas);
+            const jenisDisabilitas = r.jenisDisabilitas || '';
             const kategoriDisabilitasStr = (r.kategoriDisabilitas || []).join(';');
             lines.push([r.nim, r.nama, r.gender, jenisDisabilitas, `"${kategoriDisabilitasStr}"`, r.fakultas, r.prodi, r.angkatan, r.status].join(','));
         }
@@ -418,23 +508,26 @@ export default function MahasiswaForm() {
         // Attempt to use SheetJS if available on the project. If not, fallback to CSV with .xlsx extension (not ideal).
         if (typeof window === "undefined") return;
 
-    const XLSX = window.XLSX;
+    const XLSXAny = window.XLSX as { utils?: any; writeFile?: any };
 
-        if (XLSX?.utils && XLSX?.writeFile) {
+        if (XLSXAny?.utils && XLSXAny?.writeFile) {
             const ws_data: (string | number)[][] = [];
 
+            // Header row - include all visible columns
             ws_data.push([
-            'nim', 'nama', 'gender', 'jenisDisabilitas', 'kategoriDisabilitas',
-            'fakultas', 'prodi', 'angkatan', 'status'
+            'NIM', 'Nama', 'Gender', 'Provinsi', 'Jenis Disabilitas', 'Kategori Disabilitas',
+            'Fakultas', 'Prodi', 'Angkatan', 'Status'
             ]);
 
+            // Data rows - use filtered/displayed rows
             for (const r of rows) {
                 ws_data.push([
                     r.nim,
                     r.nama,
                     r.gender,
-                    computejenisDisabilitasFromkategoriDisabilitas(r.kategoriDisabilitas),
-                    (r.kategoriDisabilitas || []).join(';'),
+                    r.provinsi || '',
+                    r.jenisDisabilitas || '',
+                    (r.kategoriDisabilitas || []).join('; '),
                     r.fakultas,
                     r.prodi,
                     r.angkatan,
@@ -442,10 +535,49 @@ export default function MahasiswaForm() {
                 ]);
             }
 
-            const wb = XLSX.utils.book_new();
-            const ws = XLSX.utils.aoa_to_sheet(ws_data);
-            XLSX.utils.book_append_sheet(wb, ws, 'mahasiswa');
-            XLSX.writeFile(wb, `mahasiswa_export_${Date.now()}.xlsx`);
+            const wb = XLSXAny.utils.book_new();
+            const ws = XLSXAny.utils.aoa_to_sheet(ws_data);
+
+            // Add borders to all cells
+            const range = XLSXAny.utils.decode_range(ws['!ref']);
+            for (let R = range.s.r; R <= range.e.r; ++R) {
+                for (let C = range.s.c; C <= range.e.c; ++C) {
+                    const cellAddress = XLSXAny.utils.encode_cell({ r: R, c: C });
+                    if (!ws[cellAddress]) continue;
+                    
+                    if (!ws[cellAddress].s) ws[cellAddress].s = {};
+                    ws[cellAddress].s.border = {
+                        top: { style: 'thin', color: { rgb: '000000' } },
+                        bottom: { style: 'thin', color: { rgb: '000000' } },
+                        left: { style: 'thin', color: { rgb: '000000' } },
+                        right: { style: 'thin', color: { rgb: '000000' } }
+                    };
+
+                    // Bold header row
+                    if (R === 0) {
+                        if (!ws[cellAddress].s.font) ws[cellAddress].s.font = {};
+                        ws[cellAddress].s.font.bold = true;
+                    }
+                }
+            }
+
+            // Set column widths
+            ws['!cols'] = [
+                { wch: 15 }, // NIM
+                { wch: 35 }, // Nama
+                { wch: 10 }, // Gender
+                { wch: 20 }, // Provinsi
+                { wch: 20 }, // Jenis Disabilitas
+                { wch: 30 }, // Kategori Disabilitas
+                { wch: 25 }, // Fakultas
+                { wch: 30 }, // Prodi
+                { wch: 10 }, // Angkatan
+                { wch: 15 }, // Status
+            ];
+
+            XLSXAny.utils.book_append_sheet(wb, ws, 'Mahasiswa');
+            XLSXAny.writeFile(wb, `mahasiswa_export_${Date.now()}.xlsx`);
+            addToast(`Berhasil export ${rows.length} data mahasiswa`, 'success');
         } else {
             addToast(
                 'SheetJS tidak ditemukan, mengekspor sebagai CSV (bisa dibuka di Excel)',
@@ -462,12 +594,7 @@ export default function MahasiswaForm() {
         }
     };
 
-    const computejenisDisabilitasFromkategoriDisabilitas = (kategoriDisabilitasArray: string[] = []) => {
-        if (!kategoriDisabilitasArray || kategoriDisabilitasArray.length === 0) return '';
-        if (kategoriDisabilitasArray.length > 1) return 'Ganda';
-        const k = kategoriDisabilitasArray[0];
-        return kategoriDisabilitas_TO_jenisDisabilitas[k] || 'Lainnya';
-    };
+    // jenisDisabilitas ditentukan oleh backend; tidak perlu compute di frontend
 
     return (
         <div className="p-6 max-w-6xl mx-auto text-black">
@@ -553,14 +680,14 @@ export default function MahasiswaForm() {
                         <label className="block text-sm font-medium">Prodi</label>
                         <select value={form.prodi_id} onChange={(e) => setForm({ ...form, prodi_id: Number(e.target.value) })} className="mt-1 block w-full border rounded p-2">
                             <option value="">-- pilih prodi --</option>
-                            {prodiList.map((p) => <option key={p.id} value={p.id}>{p.nama}</option>)}
+                            {Array.isArray(prodiList) && prodiList.map((p) => <option key={p.id} value={p.id}>{p.nama}</option>)}
                         </select>
                     </div>
 
                     <div className="md:col-span-3">
                         <label className="block text-sm font-medium">kategoriDisabilitas Disabilitas (pilih satu atau lebih)</label>
                         <div className="mt-1 grid grid-cols-2 md:grid-cols-4 gap-2">
-                            {kategoriDisabilitas_OPTIONS.map((k) => (
+                            {kategoriOptions.map((k) => (
                                 <label key={k} className="inline-flex items-center">
                                     <input type="checkbox" checked={form.kategoriDisabilitas.includes(k)} onChange={(e) => {
                                         const checked = e.target.checked;
@@ -599,13 +726,28 @@ export default function MahasiswaForm() {
 
             {/* Controls: search / filters / export */}
             <div className="mb-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                     <input placeholder="Cari nama atau NIM" value={search} onChange={(e) => setSearch(e.target.value)} className="border rounded p-2" />
+
                     <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="border rounded p-2">
                         <option value="">Semua status</option>
                         {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
-                    <button onClick={() => { setCurrentPage(1); fetchRows(); }} className="px-3 py-2 border rounded">Filter</button>
+
+                    <select value={filterAngkatan} onChange={(e) => setFilterAngkatan(e.target.value)} className="border rounded p-2">
+                        <option value="">Semua Angkatan</option>
+                        {angkatanList.map((a) => <option key={a} value={a}>{a}</option>)}
+                    </select>
+
+                    <select value={filterFakultasId} onChange={(e) => setFilterFakultasId(e.target.value ? Number(e.target.value) : '')} className="border rounded p-2">
+                        <option value="">Semua Fakultas</option>
+                        {fakultasList.map((f) => <option key={f.id} value={f.id}>{f.nama}</option>)}
+                    </select>
+
+                    <select value={filterProdiId} onChange={(e) => setFilterProdiId(e.target.value ? Number(e.target.value) : '')} className="border rounded p-2">
+                        <option value="">Semua Prodi</option>
+                        {filterProdiList.map((p) => <option key={p.id} value={p.id}>{p.nama}</option>)}
+                    </select>
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -621,6 +763,7 @@ export default function MahasiswaForm() {
                             <th className="px-4 py-2">NIM</th>
                             <th className="px-4 py-2">Nama</th>
                             <th className="px-4 py-2">Gender</th>
+                            <th className="px-4 py-2">Provinsi</th>
                             <th className="px-4 py-2">jenisDisabilitas</th>
                             <th className="px-4 py-2">kategoriDisabilitas</th>
                             <th className="px-4 py-2">Fakultas</th>
@@ -632,15 +775,16 @@ export default function MahasiswaForm() {
                     </thead>
                     <tbody>
                         {loading ? (
-                            <tr><td colSpan={10} className="p-4">Memuat...</td></tr>
+                            <tr><td colSpan={11} className="p-4">Memuat...</td></tr>
                         ) : rows.length === 0 ? (
-                            <tr><td colSpan={10} className="p-4">Tidak ada data</td></tr>
+                            <tr><td colSpan={11} className="p-4">Tidak ada data</td></tr>
                         ) : rows.map((r) => (
                             <tr key={r.id} className="border-t">
                                 <td className="px-4 py-2">{r.nim}</td>
                                 <td className="px-4 py-2">{r.nama}</td>
                                 <td className="px-4 py-2">{r.gender}</td>
-                                <td className="px-4 py-2">{computejenisDisabilitasFromkategoriDisabilitas(r.kategoriDisabilitas)}</td>
+                                <td className="px-4 py-2">{r.provinsi || ''}</td>
+                                <td className="px-4 py-2">{r.jenisDisabilitas || ''}</td>
                                 <td className="px-4 py-2">{(r.kategoriDisabilitas || []).join(', ')}</td>
                                 <td className="px-4 py-2">{r.fakultas}</td>
                                 <td className="px-4 py-2">{r.prodi}</td>

@@ -61,10 +61,10 @@
 
 "use client";
 
-import React, { useState } from "react";
 import api from "@/lib/api";
-import { useRouter } from "next/navigation";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
+import React, { useState } from "react";
 
 export default function LoginPage() {
   const [registrationNumber, setRegistrationNumber] = useState("");
@@ -81,24 +81,28 @@ export default function LoginPage() {
     try {
       const res = await api.post("/api/login", { registrationNumber });
 
-      // --- CASE 1: ADMIN (OTP DIKIRIM)
       if (res.data.message === "OTP sent") {
+        document.cookie = `authStage=otp; path=/; max-age=600`; // 10 min
+        document.cookie = `pendingRegNumber=${registrationNumber}; path=/; max-age=600`;
         router.push(`/otp?registrationNumber=${registrationNumber}`);
         return;
       }
 
-      // --- CASE 2: PESERTA
       if (res.data.token) {
-        // cek role dari server
         const role = res.data.user?.role;
 
         localStorage.setItem("token", res.data.token);
         localStorage.setItem("user", JSON.stringify(res.data.user));
 
+        // Set cookies for middleware
+        document.cookie = `authToken=${res.data.token}; path=/; max-age=86400`; // 1 day
+        document.cookie = `role=${role}; path=/; max-age=86400`;
+
         if (role === "ADMIN") {
           router.push("/admin/dashboard");
         } else {
-          router.push("/dashboard/camaba");
+          // Redirect non-admin users back to FrontEnd Digital Literacy Test
+          window.location.href = "http://localhost:3000/digital-literacy-test";
         }
         return;
       }

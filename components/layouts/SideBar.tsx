@@ -26,7 +26,7 @@ export default function Sidebar() {
                 width={100}
                 height={100}
                 alt="Logo"
-                className="invert brightness-0"
+                className="invert brightness-0 items-center mx-auto my-4"
             />
             <div className="p-6 border-b border-white/20 text-center text-xl font-bold">
                 ULD UKDW
@@ -95,6 +95,19 @@ export default function Sidebar() {
                                 )}
                             >
                                 Data Mahasiswa
+                            </Link>
+                            
+                            {/* Tambah kategori disabilitas */}
+                            <Link
+                                href="/admin/dashboard/input/kategori-disabilitas"
+                                className={clsx(
+                                    "block px-3 py-2 rounded-md text-sm transition",
+                                    pathname === "/dashboard/input/kategori-disabilitas"
+                                        ? "bg-white text-[#108607] font-semibold"
+                                        : "hover:bg-white/20"
+                                )}
+                            >
+                                Kategori Disabilitas
                             </Link>
                             {/* Soal Tes */}
                             <Link
