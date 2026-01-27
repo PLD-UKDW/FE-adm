@@ -50,6 +50,7 @@ export default function BeritaAdminPage() {
   const [tanggal, setTanggal] = useState("");
   const [lokasi, setLokasi] = useState("");
   const [imageFiles, setImageFiles] = useState<File[]>([]);
+    const [existingImages, setExistingImages] = useState<string[]>([]);
   const [isPublished, setIsPublished] = useState(false);
   const [saving, setSaving] = useState(false);
   const [toasts, setToasts] = useState<{ id: number; message: string; type: "info"|"success"|"error" }[]>([]);
@@ -129,11 +130,17 @@ export default function BeritaAdminPage() {
     let mounted = true;
     const init = async () => {
       const Quill = (await import("quill")).default;
-      if (!mounted || !quillContainerRef.current || quillInstanceRef.current) return;
+      if (!mounted || !quillContainerRef.current) return;
+      
+      if (quillInstanceRef.current) {
+        quillInstanceRef.current = null;
+      }
+      
       const q = new Quill(quillContainerRef.current, {
         theme: "snow",
         modules: quillModules,
         formats: quillFormats,
+        placeholder: "Ketik konten berita di sini...",
       });
       quillInstanceRef.current = q;
       // Sanitize pasted content: drop SVG/FIGURE elements that can render odd shapes
@@ -146,30 +153,38 @@ export default function BeritaAdminPage() {
           });
         }
       } catch {}
+      
+            if (content) {
+              q.root.innerHTML = sanitizeHtml(content);
+            }
+      
       q.on("text-change", () => {
         setContent(q.root.innerHTML);
       });
-      q.root.innerHTML = sanitizeHtml(content || "");
     };
     init();
-    return () => { mounted = false; quillInstanceRef.current = null; };
+    return () => { mounted = false; };
   }, [quillModules, quillFormats, sanitizeHtml]);
 
   useEffect(() => {
     if (quillInstanceRef.current && quillInstanceRef.current.root) {
       const current = quillInstanceRef.current.root.innerHTML;
       const next = sanitizeHtml(content || "");
-      if (current !== next) {
+      if (current !== next && editingId) {
         quillInstanceRef.current.root.innerHTML = next;
       }
     }
-  }, [content, sanitizeHtml]);
+  }, [content, sanitizeHtml, editingId]);
 
   const handleCreate = async (e:FormEvent) => {
     e.preventDefault();
     if(!token){ addToast("Belum login", "error"); return; }
     const plain = content.replace(/<[^>]*>/g, "").trim();
     if(!title || !plain || !categoryId){ addToast("Lengkapi title, content, category", "error"); return; }
+    
+      const hasImages = imageFiles.length > 0 || existingImages.length > 0;
+      if (!hasImages) { addToast("Upload minimal 1 gambar", "error"); return; }
+    
     setSaving(true);
     try {
       const formData = new FormData();
@@ -179,6 +194,7 @@ export default function BeritaAdminPage() {
       formData.append("isPublished", String(isPublished));
       if(tanggal) formData.append("tanggal", tanggal);
       if(lokasi) formData.append("lokasi", lokasi);
+      
       imageFiles.forEach((file) => {
         formData.append("content_images", file);
       });
@@ -199,7 +215,10 @@ export default function BeritaAdminPage() {
       addToast(`Berita berhasil ${editingId ? 'diupdate' : 'dibuat'}`, "success");
       resetForm();
       fetchList();
-    } catch { addToast(`Error saat ${editingId ? 'mengupdate' : 'membuat'} berita`, "error"); }
+    } catch (err: any) { 
+      console.error(err);
+      addToast(`Error saat ${editingId ? 'mengupdate' : 'membuat'} berita: ${err.message}`, "error"); 
+    }
     finally { setSaving(false); }
   };
 
@@ -210,6 +229,7 @@ export default function BeritaAdminPage() {
     setTanggal(""); 
     setLokasi(""); 
     setImageFiles([]); 
+      setExistingImages([]);
     setIsPublished(false);
     setEditingId(null);
     if (quillInstanceRef.current) {
@@ -237,6 +257,12 @@ export default function BeritaAdminPage() {
       setTanggal(body.tanggal ? new Date(body.tanggal).toISOString().split('T')[0] : "");
       setLokasi(body.lokasi || "");
       setIsPublished(body.isPublished || false);
+      
+            const imgs = body.content_images 
+              ? body.content_images.split(',').map((img: string) => img.trim()).filter((img: string) => img)
+              : [];
+            setExistingImages(imgs);
+      
       setImageFiles([]);
       
       // Update Quill editor
@@ -247,8 +273,8 @@ export default function BeritaAdminPage() {
       // Scroll to form
       window.scrollTo({ top: 0, behavior: 'smooth' });
       addToast("Mode Edit - Silakan ubah data dan simpan", "info");
-    } catch {
-      addToast("Error memuat data berita", "error");
+    } catch (err: any) {
+      addToast("Error memuat data berita: " + err.message, "error");
     }
   };
 
@@ -379,6 +405,72 @@ export default function BeritaAdminPage() {
               </div>
             )}
           </div>
+          {existingImages.length > 0 && (
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium mb-2">Gambar Saat Ini</label>
+              <div className="flex flex-wrap gap-2 p-3 bg-blue-50 rounded">
+                {existingImages.map((img, idx) => (
+                  <div key={idx} className="relative group">
+                    <Image
+                      src={`http://localhost:4000/uploads/berita/${img}`}
+                      alt={`existing-${idx}`}
+                      width={100}
+                      height={100}
+                      className="w-24 h-24 object-cover rounded border-2 border-blue-300"
+                      onError={() => console.error(`Failed to load image: ${img}`)}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeExistingImage(idx)}
+                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm opacity-0 group-hover:opacity-100 transition"
+                      title="Ganti gambar (hapus yang lama)"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-gray-500 mt-1">Hover & klik × untuk menghapus dan ganti dengan gambar baru</p>
+            </div>
+          )}
+
+          {/* NEW IMAGES */}
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium">Gambar Konten {editingId && existingImages.length === 0 ? "(Wajib - gambar lama akan dihapus)" : "(bisa multiple)"}</label>
+            <input 
+              type="file" 
+              accept="image/*" 
+              multiple
+              className="mt-1 w-full" 
+              onChange={e=> setImageFiles(Array.from(e.target.files || []))} 
+            />
+            {imageFiles.length > 0 && (
+              <div className="mt-2">
+                <p className="text-sm font-medium text-green-600 mb-2">Gambar Baru ({imageFiles.length}):</p>
+                <div className="flex flex-wrap gap-2">
+                  {imageFiles.map((file, idx) => (
+                    <div key={idx} className="relative">
+                      <Image
+                        src={URL.createObjectURL(file)}
+                        alt={`preview-${idx}`}
+                        width={80}
+                        height={80}
+                        className="w-20 h-20 object-cover rounded border-2 border-green-300"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setImageFiles(imageFiles.filter((_, i) => i !== idx))}
+                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
           <div>
             <label className="flex items-center gap-2 text-sm font-medium">
               <input
