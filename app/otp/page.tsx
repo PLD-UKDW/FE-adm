@@ -3,6 +3,7 @@
 import React, { useRef, useState } from "react";
 import api from "@/lib/api";
 import { useRouter, useSearchParams } from "next/navigation";
+import axios from "axios";
 
 export default function OTPPage() {
   const [otp, setOtp] = useState<string[]>(Array(6).fill(""));
@@ -56,8 +57,12 @@ export default function OTPPage() {
       localStorage.setItem("token", res.data.token);
 
       router.push("/admin/dashboard");
-    } catch (err: any) {
-      setError(err?.response?.data?.message || "OTP salah atau gagal.");
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        setError(err.response?.data?.message || "OTP salah atau gagal.");
+      } else {
+        setError("Terjadi kesalahan tidak terduga.");
+      }
     } finally {
       setLoading(false);
     }
@@ -89,7 +94,7 @@ export default function OTPPage() {
               onChange={(e) => handleChange(e.target.value, index)}
               onKeyDown={(e) => handleBackspace(e, index)}
               className="
-                w-14 h-16 text-center text-2xl font-bold
+                w-14 h-16 text-center text-2xl font-bold text-black
                 border-2 rounded-xl outline-none
                 border-gray-300 focus:border-[#108607] focus:ring-2 focus:ring-[#108607]/30
                 transition

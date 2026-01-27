@@ -1,12 +1,38 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import UnderDevelopment from "@/components/UnderDevelopment";
 import api from "@/lib/api";
 import Link from "next/link";
+import { useEffect, useState } from "react";
+
+interface Question {
+  id: string;
+}
+
+interface Test {
+  id: string;
+  title: string;
+  type: string;
+  questions?: Question[];
+}
+
+interface User {
+  name: string;
+}
+
+interface Attempt {
+  id: string;
+  user?: User;
+  test?: { title: string };
+  score?: number;
+  passStatus?: string;
+}
+
+const UNDER_MAINTENANCE = true;
 
 export default function AdminDashboard() {
   const [tests, setTests] = useState<any[]>([]);
-  const [attempts, setAttempts] = useState<any[]>([]);
+  const [attempts, setAttempts] = useState<any[]>([])
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState(0);
 
@@ -35,9 +61,14 @@ export default function AdminDashboard() {
   }
 
   useEffect(() => {
-    fetchAll();
+    if (!UNDER_MAINTENANCE) {
+      fetchAll();
+    }
   }, []);
 
+  if (UNDER_MAINTENANCE) {
+    return <UnderDevelopment />;
+  }
   // =============================
   // CREATE TEST HANDLER
   // =============================
@@ -71,7 +102,7 @@ export default function AdminDashboard() {
   if (loading)
     return (
       <div className="p-6">
-        <p className="text-gray-600">Loading dashboard...</p>
+        <p className="text-black">Loading dashboard...</p>
       </div>
     );
 
