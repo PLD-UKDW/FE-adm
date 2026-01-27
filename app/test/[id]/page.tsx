@@ -3,10 +3,17 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 
+/* =====================================================
+   DO TEST PAGE – SCREEN READER FIRST
+===================================================== */
+
 export default function DoTestPage() {
   const { id } = useParams();
   const router = useRouter();
 
+  /* ==========================
+     DATA STATE
+  ========================== */
   const [test, setTest] = useState<any>(null);
   const [questions, setQuestions] = useState<any[]>([]);
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -14,77 +21,204 @@ export default function DoTestPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
+  /* ==========================
+     ACCESSIBILITY
+  ========================== */
+  const [useTTS, setUseTTS] = useState(true);
+  const [optionIndex, setOptionIndex] = useState(0);
+
+  /* =====================================================
+     🔊 SPEECH ENGINE
+  ===================================================== */
+  const speakQueue = (texts: string[]) => {
+    if (!useTTS) return;
+    if (!("speechSynthesis" in window)) return;
+
+    window.speechSynthesis.cancel();
+
+    texts.forEach((text) => {
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = "id-ID";
+      u.rate = 0.9;
+      window.speechSynthesis.speak(u);
+    });
+  };
+
+  /* ==========================
+     FETCH TEST
+  ========================== */
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) return router.push("/login");
 
-    const fetchData = async () => {
-      try {
-        const res = await fetch(`http://localhost:4000/api/test/${id}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+    // ambil mode TTS dari dashboard
+    setUseTTS(localStorage.getItem("accessMode") !== "no-tts");
 
-        if (res.status === 401) {
-          localStorage.removeItem("token");
-          return router.push("/login");
-        }
-
-        const data = await res.json();
-
+    fetch(`http://localhost:4000/api/test/${id}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json())
+      .then((data) => {
         setTest(data);
         setQuestions(data.questions || []);
-      } catch (err) {
-        console.error("Fetch error:", err);
-      } finally {
-        setLoading(false);
+      })
+      .finally(() => setLoading(false));
+  }, [id, router]);
+
+  /* =====================================================
+     INTRO + SOAL PERTAMA
+  ===================================================== */
+  useEffect(() => {
+    if (loading || !test || !questions.length || !useTTS) return;
+
+    speakQueue([
+      `Anda sedang mengerjakan ${test.title}.`,
+      test.description,
+      `Terdapat ${questions.length} soal.`,
+      "Gunakan panah kiri dan kanan untuk berpindah soal.",
+      "Gunakan panah atas dan bawah untuk memilih jawaban.",
+      "Tekan spasi atau enter untuk memilih.",
+    ]);
+
+    readQuestion(0);
+  }, [loading, test, questions, useTTS]);
+
+  /* =====================================================
+     READ QUESTION
+  ===================================================== */
+  const readQuestion = (index: number) => {
+    const q = questions[index];
+    if (!q) return;
+
+    const queue: string[] = [
+      `Soal ${index + 1}.`,
+      q.text,
+    ];
+
+    if (q.questionType === "MULTIPLE_CHOICE") {
+      q.options.forEach((opt: string, i: number) => {
+        const label = ["A", "B", "C", "D"][i];
+        queue.push(`Pilihan ${label}. ${opt}`);
+      });
+
+      queue.push("Gunakan panah atas dan bawah untuk memilih jawaban.");
+    } else {
+      queue.push("Soal esai. Silakan ketik jawaban Anda.");
+    }
+
+    speakQueue(queue);
+  };
+
+  /* =====================================================
+     KEYBOARD NAVIGATION (TTS MODE)
+  ===================================================== */
+  useEffect(() => {
+    if (!useTTS || !questions.length) return;
+
+    const handler = (e: KeyboardEvent) => {
+      const q = questions[current];
+
+      // PINDAH SOAL
+      if (e.code === "ArrowRight" && current < questions.length - 1) {
+        e.preventDefault();
+        setCurrent((c) => {
+          const next = c + 1;
+          setOptionIndex(0);
+          readQuestion(next);
+          return next;
+        });
+      }
+
+      if (e.code === "ArrowLeft" && current > 0) {
+        e.preventDefault();
+        setCurrent((c) => {
+          const prev = c - 1;
+          setOptionIndex(0);
+          readQuestion(prev);
+          return prev;
+        });
+      }
+
+      // MULTIPLE CHOICE
+      if (q.questionType === "MULTIPLE_CHOICE") {
+        if (e.code === "ArrowDown" || e.code === "ArrowUp") {
+          e.preventDefault();
+
+          setOptionIndex((prev) => {
+            const next =
+              e.code === "ArrowDown"
+                ? (prev + 1) % q.options.length
+                : (prev - 1 + q.options.length) % q.options.length;
+
+            speakQueue([
+              `Pilihan ${["A", "B", "C", "D"][next]}.`,
+              q.options[next],
+            ]);
+
+            return next;
+          });
+        }
+
+        if (e.code === "Space" || e.code === "Enter") {
+          e.preventDefault();
+
+          const key = ["a", "b", "c", "d"][optionIndex];
+          setAnswers((prev) => ({ ...prev, [q.id]: key }));
+
+          speakQueue([
+            "Jawaban dipilih.",
+            `Pilihan ${["A", "B", "C", "D"][optionIndex]}.`,
+          ]);
+        }
       }
     };
 
-    fetchData();
-  }, [id, router]);
-  if (loading) return <p className="p-6">Memuat soal...</p>;
-  if (!test) return <p className="p-6">Test tidak ditemukan.</p>;
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [useTTS, questions, current, optionIndex]);
 
-  const q = questions[current];
-
-  const handleChoose = (v: string) => {
-    setAnswers((prev) => ({ ...prev, [q.id]: v }));
-  };
-
+  /* ==========================
+     SUBMIT
+  ========================== */
   const handleSubmit = async () => {
     const token = localStorage.getItem("token");
     setSubmitting(true);
 
     try {
-      const res = await fetch(`http://localhost:4000/api/test/${id}/submit`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ answers }),
-      });
+      const res = await fetch(
+        `http://localhost:4000/api/test/${id}/submit`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ answers }),
+        }
+      );
 
       const result = await res.json();
-      console.log("Submit result:", result);
-
-      // ==========================================
-      // ⬇⬇ PERBAIKAN: ambil attemptId
-      // ==========================================
       const attemptId = result.attempt?.id;
-      if (!attemptId) {
-        console.error("No attemptId returned");
-        return;
-      }
 
-      // Redirect ke halaman result dengan attemptId
-      router.push(`/test/${id}/result?attemptId=${attemptId}`);
-    } catch (e) {
-      console.error("Submit error:", e);
+      if (!attemptId) return;
+
+      speakQueue(["Jawaban berhasil dikirim. Membuka hasil tes."]);
+
+      setTimeout(() => {
+        router.push(`/test/${id}/result?attemptId=${attemptId}`);
+      }, 800);
     } finally {
       setSubmitting(false);
     }
   };
+
+  /* ==========================
+     UI
+  ========================== */
+  if (loading) return <p className="p-6">Memuat soal...</p>;
+  if (!test) return <p className="p-6">Test tidak ditemukan.</p>;
+
+  const q = questions[current];
 
   return (
     <div className="max-w-3xl mx-auto p-8 text-black">
@@ -96,28 +230,30 @@ export default function DoTestPage() {
           Soal {current + 1} dari {questions.length}
         </h2>
 
-        {/* TEXT SOAL */}
         <p className="text-lg mb-4">{q.text}</p>
 
-        {/* MULTIPLE CHOICE */}
         {q.questionType === "MULTIPLE_CHOICE" && (
           <div className="space-y-3">
-            {/* {q.options.map((opt: string, i: number) => (
-              <label key={i} className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer ${answers[q.id] === opt ? "border-blue-500 bg-blue-50" : "hover:bg-gray-50"}`}>
-                <input type="radio" name={String(q.id)} checked={answers[q.id] === opt} onChange={() => handleChoose(opt)} />
-                {opt}
-              </label>
-            ))} */}
             {q.options.map((opt: string, i: number) => {
               const key = ["a", "b", "c", "d"][i];
 
               return (
                 <label
                   key={i}
-                  className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer 
-      ${answers[q.id] === key ? "border-blue-500 bg-blue-50" : "hover:bg-gray-50"}`}
+                  className={`flex items-center gap-3 p-3 border rounded-lg ${
+                    answers[q.id] === key
+                      ? "border-blue-500 bg-blue-50"
+                      : "hover:bg-gray-50"
+                  }`}
                 >
-                  <input type="radio" name={String(q.id)} checked={answers[q.id] === key} onChange={() => handleChoose(key)} />
+                  <input
+                    type="radio"
+                    name={String(q.id)}
+                    checked={answers[q.id] === key}
+                    onChange={() =>
+                      setAnswers((p) => ({ ...p, [q.id]: key }))
+                    }
+                  />
                   {opt}
                 </label>
               );
@@ -125,22 +261,40 @@ export default function DoTestPage() {
           </div>
         )}
 
-        {/* ESSAY */}
-        {q.questionType === "ESSAY" && <textarea className="w-full border rounded-lg p-3" rows={6} value={answers[q.id] ?? ""} onChange={(e) => handleChoose(e.target.value)} />}
+        {q.questionType === "ESSAY" && (
+          <textarea
+            className="w-full border rounded-lg p-3"
+            rows={6}
+            value={answers[q.id] ?? ""}
+            onChange={(e) =>
+              setAnswers((p) => ({ ...p, [q.id]: e.target.value }))
+            }
+          />
+        )}
       </div>
 
-      {/* Navigasi Soal */}
       <div className="flex justify-between mt-6">
-        <button onClick={() => setCurrent((c) => Math.max(0, c - 1))} disabled={current === 0} className="px-4 py-2 border rounded-lg disabled:opacity-40">
+        <button
+          onClick={() => setCurrent((c) => Math.max(0, c - 1))}
+          disabled={current === 0}
+          className="px-4 py-2 border rounded-lg"
+        >
           ← Sebelumnya
         </button>
 
         {current < questions.length - 1 ? (
-          <button onClick={() => setCurrent((c) => c + 1)} className="px-4 py-2 bg-blue-600 text-white rounded-lg">
+          <button
+            onClick={() => setCurrent((c) => c + 1)}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg"
+          >
             Selanjutnya →
           </button>
         ) : (
-          <button onClick={handleSubmit} disabled={submitting} className="px-4 py-2 bg-green-600 text-white rounded-lg">
+          <button
+            onClick={handleSubmit}
+            disabled={submitting}
+            className="px-4 py-2 bg-green-600 text-white rounded-lg"
+          >
             {submitting ? "Mengirim..." : "Kirim Jawaban"}
           </button>
         )}
