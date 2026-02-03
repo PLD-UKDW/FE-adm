@@ -52,7 +52,7 @@ export default function OTPPage() {
     setError("");
 
     try {
-      const res = await api.post("/api/verify-admin", {
+      const res = await api.post("/verify-admin", {
         registrationNumber,
         otp: code,
       });

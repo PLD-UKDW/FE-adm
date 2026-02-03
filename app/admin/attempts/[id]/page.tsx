@@ -106,42 +106,71 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
-import api from "@/lib/api";
+import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 
 export default function AttemptReview() {
   const params = useParams();
   const attemptId = params.id; // ✔ FIXED
 
+  const [token, setToken] = useState<string | null>(null);
   const [attempt, setAttempt] = useState<any>(null);
   const [manualScore, setManualScore] = useState("");
   const [statusOverride, setStatusOverride] = useState("");
   const [loading, setLoading] = useState(true);
 
+  useEffect(() => {
+    const storedToken = localStorage.getItem("token");
+    setToken(storedToken);
+  }, []);
+
   // ======================================
   // FETCH DETAIL ATTEMPT
   // ======================================
-  async function fetchDetail() {
+  const fetchDetail = useCallback(async () => {
+    if (!token) return;
+    setLoading(true);
     try {
-      const res = await api.get(`/admin/attempts/${attemptId}`);
-      setAttempt(res.data);
-      setStatusOverride(res.data.passStatus ?? "");
+      const res = await fetch(`http://localhost:4000/api/admin/attempts/${attemptId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        console.error("fetchDetail error:", res.status);
+        return;
+      }
+      const data = await res.json();
+      setAttempt(data);
+      setStatusOverride(data.passStatus ?? "");
     } catch (err) {
       console.error("fetchDetail:", err);
     } finally {
       setLoading(false);
     }
-  }
+  }, [token, attemptId]);
+
+  useEffect(() => {
+    fetchDetail();
+  }, [fetchDetail]);
 
   // ======================================
   // SUBMIT MANUAL SCORE
   // ======================================
   async function submitManualScore() {
+    if (!token) return;
     try {
-      await api.post(`/admin/attempts/${attemptId}/score`, {
-        manualScore: Number(manualScore),
+      const res = await fetch(`http://localhost:4000/api/admin/attempts/${attemptId}/score`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ manualScore: Number(manualScore) }),
       });
+
+      if (!res.ok) {
+        alert("Gagal menyimpan manual score");
+        return;
+      }
 
       alert("Manual score berhasil disimpan!");
       fetchDetail();
@@ -155,10 +184,21 @@ export default function AttemptReview() {
   // OVERRIDE PASS / FAIL STATUS
   // ======================================
   async function updatePassStatus() {
+    if (!token) return;
     try {
-      await api.post(`/admin/attempts/${attemptId}/status`, {
-        status: statusOverride,
+      const res = await fetch(`http://localhost:4000/api/admin/attempts/${attemptId}/status`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ status: statusOverride }),
       });
+
+      if (!res.ok) {
+        alert("Gagal mengubah status");
+        return;
+      }
 
       alert("Status berhasil diperbarui!");
       fetchDetail();
@@ -167,10 +207,6 @@ export default function AttemptReview() {
       alert("Gagal mengubah status");
     }
   }
-
-  useEffect(() => {
-    fetchDetail();
-  }, []);
 
   if (loading) return <p className="p-6">Loading...</p>;
   if (!attempt) return <p className="p-6 text-red-600">Attempt tidak ditemukan.</p>;

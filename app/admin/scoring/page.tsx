@@ -3,7 +3,6 @@
 
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
-import api from "@/lib/api"; // pastikan ini ada (axios instance dengan Authorization)
 import { format } from "date-fns";
 
 type Attempt = {
@@ -31,6 +30,7 @@ type Question = {
 };
 
 export default function AdminScoringPage() {
+  const [token, setToken] = useState<string | null>(null);
   const [attempts, setAttempts] = useState<Attempt[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Attempt | null>(null);
@@ -42,29 +42,33 @@ export default function AdminScoringPage() {
   const attemptIdFromURL = params.get("id");
   const testIdFromURL = params.get("test");
 
-  // Fetch attempts
-  // const fetchAttempts = useCallback(async () => {
-  //   try {
-  //     const res = await api.get("/admin/attempts");
-  //     setAttempts(res.data || []);
-  //   } catch (err) {
-  //     console.error("fetchAttempts:", err);
-  //   } finally {
-  //     setLoading(false);
-  //   }
-  // }, []);
-  const fetchAttempts = useCallback(async () => {
-    try {
-      const url = params.get("test") ? `/admin/attempts?testId=${params.get("test")}` : "/admin/attempts";
+  useEffect(() => {
+    const storedToken = localStorage.getItem("token");
+    setToken(storedToken);
+  }, []);
 
-      const res = await api.get(url);
-      setAttempts(res.data || []);
+  // Fetch attempts
+  const fetchAttempts = useCallback(async () => {
+    if (!token) return;
+    try {
+      const testId = params.get("test");
+      const url = testId ? `http://localhost:4000/api/admin/attempts?testId=${testId}` : "http://localhost:4000/api/admin/attempts";
+
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        console.error("fetchAttempts error:", res.status);
+        return;
+      }
+      const data = await res.json();
+      setAttempts(data || []);
     } catch (err) {
       console.error("fetchAttempts:", err);
     } finally {
       setLoading(false);
     }
-  }, [params]);
+  }, [token, params]);
 
   useEffect(() => {
     fetchAttempts();
@@ -74,10 +78,10 @@ export default function AdminScoringPage() {
   }, [fetchAttempts]);
 
   useEffect(() => {
-    if (attemptIdFromURL) {
+    if (attemptIdFromURL && token) {
       openAttempt(Number(attemptIdFromURL));
     }
-  }, [attemptIdFromURL]);
+  }, [attemptIdFromURL, token]);
 
   // refetch on toggle
   useEffect(() => {
@@ -86,16 +90,31 @@ export default function AdminScoringPage() {
 
   // Open attempt detail: fetch attempt detail + test questions
   async function openAttempt(attemptId: number) {
+    if (!token) return;
     try {
-      const res = await api.get(`/admin/attempts/${attemptId}`);
-      const attempt: Attempt = res.data.attempt || res.data;
+      const res = await fetch(`http://localhost:4000/api/admin/attempts/${attemptId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        console.error("openAttempt error:", res.status);
+        return;
+      }
+      const data = await res.json();
+      const attempt: Attempt = data.attempt || data;
       setSelected(attempt);
 
       // get test with questions
       const testId = attempt.test?.id || attempt.testId;
       if (testId) {
-        const t = await api.get(`/admin/tests/${testId}`);
-        setQuestions(t.data.questions || []);
+        const tRes = await fetch(`http://localhost:4000/api/admin/tests/${testId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (tRes.ok) {
+          const tData = await tRes.json();
+          setQuestions(tData.questions || []);
+        } else {
+          setQuestions([]);
+        }
       } else {
         setQuestions([]);
       }
@@ -115,20 +134,32 @@ export default function AdminScoringPage() {
 
   // Apply manual score
   async function applyManualScore() {
-    if (!selected) return;
+    if (!selected || !token) return;
     setSaving(true);
     try {
       const manualScore = Number(manualScoreInput || 0);
-      const res = await api.post(`/admin/attempts/${selected.id}/score`, { manualScore });
-      // response includes updated attempt
-      console.log("score res:", res.data);
+      const res = await fetch(`http://localhost:4000/api/admin/attempts/${selected.id}/score`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ manualScore }),
+      });
+      if (!res.ok) {
+        const errorData = await res.json();
+        alert(errorData?.message || "Gagal mengupdate skor");
+        return;
+      }
+      const data = await res.json();
+      console.log("score res:", data);
       await fetchAttempts();
       // reopen detail to refresh
       await openAttempt(selected.id);
       alert("Manual score applied.");
     } catch (err: any) {
       console.error("applyManualScore:", err);
-      alert(err?.response?.data?.message || "Gagal mengupdate skor");
+      alert(err?.message || "Gagal mengupdate skor");
     } finally {
       setSaving(false);
     }
@@ -136,9 +167,20 @@ export default function AdminScoringPage() {
 
   // Override pass/fail
   async function setPassStatus(status: "PASS" | "FAIL") {
-    if (!selected) return;
+    if (!selected || !token) return;
     try {
-      await api.post(`/admin/attempts/${selected.id}/status`, { status });
+      const res = await fetch(`http://localhost:4000/api/admin/attempts/${selected.id}/status`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) {
+        alert("Gagal update status");
+        return;
+      }
       await fetchAttempts();
       await openAttempt(selected.id);
       alert("Status updated.");
@@ -334,7 +376,6 @@ export default function AdminScoringPage() {
                 <button onClick={applyManualScore} disabled={saving} className="px-4 py-2 bg-green-600 text-white rounded">
                   {saving ? "Menyimpan..." : "Apply Manual Score"}
                 </button>
-
                 <div className="flex gap-2">
                   <button onClick={() => setPassStatus("PASS")} className="px-3 py-2 bg-blue-600 text-white rounded">
                     Set PASS
@@ -342,8 +383,8 @@ export default function AdminScoringPage() {
                   <button onClick={() => setPassStatus("FAIL")} className="px-3 py-2 bg-red-600 text-white rounded">
                     Set FAIL
                   </button>
-                </div>npx prisma generate
-
+                </div>
+                npx prisma generate
               </div>
             </div>
 
@@ -358,4 +399,3 @@ export default function AdminScoringPage() {
     </div>
   );
 }
-

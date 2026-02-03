@@ -49,18 +49,30 @@ export default function DoTestPage() {
   ========================== */
   useEffect(() => {
     const token = localStorage.getItem("token");
-    if (!token) return router.push("/login");
+    if (!token) {
+      router.push("/login");
+      return;
+    }
 
-    // ambil mode TTS dari dashboard
     setUseTTS(localStorage.getItem("accessMode") !== "no-tts");
 
-    fetch(`http://localhost:4000/api/test/${id}`, {
-      headers: { Authorization: `Bearer ${token}` },
+    const API_URL = process.env.NEXT_PUBLIC_API_URL;
+
+    fetch(`${API_URL}/test/${id}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
     })
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
       .then((data) => {
         setTest(data);
         setQuestions(data.questions || []);
+      })
+      .catch((err) => {
+        console.error("Gagal mengambil data tes:", err);
       })
       .finally(() => setLoading(false));
   }, [id, router]);
@@ -90,10 +102,7 @@ export default function DoTestPage() {
     const q = questions[index];
     if (!q) return;
 
-    const queue: string[] = [
-      `Soal ${index + 1}.`,
-      q.text,
-    ];
+    const queue: string[] = [`Soal ${index + 1}.`, q.text];
 
     if (q.questionType === "MULTIPLE_CHOICE") {
       q.options.forEach((opt: string, i: number) => {
@@ -145,15 +154,9 @@ export default function DoTestPage() {
           e.preventDefault();
 
           setOptionIndex((prev) => {
-            const next =
-              e.code === "ArrowDown"
-                ? (prev + 1) % q.options.length
-                : (prev - 1 + q.options.length) % q.options.length;
+            const next = e.code === "ArrowDown" ? (prev + 1) % q.options.length : (prev - 1 + q.options.length) % q.options.length;
 
-            speakQueue([
-              `Pilihan ${["A", "B", "C", "D"][next]}.`,
-              q.options[next],
-            ]);
+            speakQueue([`Pilihan ${["A", "B", "C", "D"][next]}.`, q.options[next]]);
 
             return next;
           });
@@ -165,10 +168,7 @@ export default function DoTestPage() {
           const key = ["a", "b", "c", "d"][optionIndex];
           setAnswers((prev) => ({ ...prev, [q.id]: key }));
 
-          speakQueue([
-            "Jawaban dipilih.",
-            `Pilihan ${["A", "B", "C", "D"][optionIndex]}.`,
-          ]);
+          speakQueue(["Jawaban dipilih.", `Pilihan ${["A", "B", "C", "D"][optionIndex]}.`]);
         }
       }
     };
@@ -180,37 +180,40 @@ export default function DoTestPage() {
   /* ==========================
      SUBMIT
   ========================== */
-  const handleSubmit = async () => {
-    const token = localStorage.getItem("token");
-    setSubmitting(true);
+const handleSubmit = async () => {
+  const token = localStorage.getItem("token");
+  const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
-    try {
-      const res = await fetch(
-        `http://localhost:4000/api/test/${id}/submit`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ answers }),
-        }
-      );
+  setSubmitting(true);
 
-      const result = await res.json();
-      const attemptId = result.attempt?.id;
+  try {
+    const res = await fetch(`${API_URL}/test/${id}/submit`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ answers }),
+    });
 
-      if (!attemptId) return;
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-      speakQueue(["Jawaban berhasil dikirim. Membuka hasil tes."]);
+    const result = await res.json();
+    const attemptId = result.attempt?.id;
+    if (!attemptId) return;
 
-      setTimeout(() => {
-        router.push(`/test/${id}/result?attemptId=${attemptId}`);
-      }, 800);
-    } finally {
-      setSubmitting(false);
-    }
-  };
+    speakQueue(["Jawaban berhasil dikirim. Membuka hasil tes."]);
+
+    setTimeout(() => {
+      router.push(`/test/${id}/result?attemptId=${attemptId}`);
+    }, 800);
+  } catch (err) {
+    console.error("Gagal submit jawaban:", err);
+  } finally {
+    setSubmitting(false);
+  }
+};
+
 
   /* ==========================
      UI
@@ -238,22 +241,8 @@ export default function DoTestPage() {
               const key = ["a", "b", "c", "d"][i];
 
               return (
-                <label
-                  key={i}
-                  className={`flex items-center gap-3 p-3 border rounded-lg ${
-                    answers[q.id] === key
-                      ? "border-blue-500 bg-blue-50"
-                      : "hover:bg-gray-50"
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name={String(q.id)}
-                    checked={answers[q.id] === key}
-                    onChange={() =>
-                      setAnswers((p) => ({ ...p, [q.id]: key }))
-                    }
-                  />
+                <label key={i} className={`flex items-center gap-3 p-3 border rounded-lg ${answers[q.id] === key ? "border-blue-500 bg-blue-50" : "hover:bg-gray-50"}`}>
+                  <input type="radio" name={String(q.id)} checked={answers[q.id] === key} onChange={() => setAnswers((p) => ({ ...p, [q.id]: key }))} />
                   {opt}
                 </label>
               );
@@ -261,40 +250,20 @@ export default function DoTestPage() {
           </div>
         )}
 
-        {q.questionType === "ESSAY" && (
-          <textarea
-            className="w-full border rounded-lg p-3"
-            rows={6}
-            value={answers[q.id] ?? ""}
-            onChange={(e) =>
-              setAnswers((p) => ({ ...p, [q.id]: e.target.value }))
-            }
-          />
-        )}
+        {q.questionType === "ESSAY" && <textarea className="w-full border rounded-lg p-3" rows={6} value={answers[q.id] ?? ""} onChange={(e) => setAnswers((p) => ({ ...p, [q.id]: e.target.value }))} />}
       </div>
 
       <div className="flex justify-between mt-6">
-        <button
-          onClick={() => setCurrent((c) => Math.max(0, c - 1))}
-          disabled={current === 0}
-          className="px-4 py-2 border rounded-lg"
-        >
+        <button onClick={() => setCurrent((c) => Math.max(0, c - 1))} disabled={current === 0} className="px-4 py-2 border rounded-lg">
           ← Sebelumnya
         </button>
 
         {current < questions.length - 1 ? (
-          <button
-            onClick={() => setCurrent((c) => c + 1)}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg"
-          >
+          <button onClick={() => setCurrent((c) => c + 1)} className="px-4 py-2 bg-blue-600 text-white rounded-lg">
             Selanjutnya →
           </button>
         ) : (
-          <button
-            onClick={handleSubmit}
-            disabled={submitting}
-            className="px-4 py-2 bg-green-600 text-white rounded-lg"
-          >
+          <button onClick={handleSubmit} disabled={submitting} className="px-4 py-2 bg-green-600 text-white rounded-lg">
             {submitting ? "Mengirim..." : "Kirim Jawaban"}
           </button>
         )}

@@ -1,13 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import api from "@/lib/api";
+import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import Link from "next/link";
+import api from "@/lib/api";
 
 export default function TestDetailPage() {
   const params = useParams();
   const id = params.id;
 
+  const [token, setToken] = useState<string | null>(null);
   const [test, setTest] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
@@ -30,20 +32,30 @@ export default function TestDetailPage() {
   const [editAnswer, setEditAnswer] = useState("");
   const [editScore, setEditScore] = useState("");
 
-  async function fetchTest() {
+  useEffect(() => {
+    const storedToken = localStorage.getItem("token");
+    setToken(storedToken);
+  }, []);
+
+  const fetchTest = useCallback(async () => {
+    if (!token) return;
+
+    setLoading(true);
     try {
-      const res = await api.get(`/admin/tests/${id}`);
+      const res = await api.get(`/admin/tests/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       setTest(res.data);
-    } catch (err) {
-      console.error("Fetch detail test error:", err);
+    } catch (err: any) {
+      console.error("Fetch detail test error:", err.response?.status, err.response?.data);
     } finally {
       setLoading(false);
     }
-  }
+  }, [token, id]);
 
   useEffect(() => {
     fetchTest();
-  }, []);
+  }, [fetchTest]);
 
   function openEditModal(q: any) {
     setEditId(q.id);
@@ -60,41 +72,57 @@ export default function TestDetailPage() {
   // =======================
 
   async function handleUpdateQuestion() {
+    if (!token) return;
     try {
-      await api.put(`/admin/questions/${editId}`, {
-        text: editText,
-        questionType: editType,
-        options: editType === "MULTIPLE_CHOICE" ? editOptions : [],
-        answer: editType === "MULTIPLE_CHOICE" ? editAnswer : null,
-        autoScore: editType === "MULTIPLE_CHOICE" ? Number(editScore || 1) : 0,
-      });
+      await api.put(
+        `/admin/questions/${editId}`,
+        {
+          text: editText,
+          questionType: editType,
+          options: editType === "MULTIPLE_CHOICE" ? editOptions : [],
+          answer: editType === "MULTIPLE_CHOICE" ? editAnswer : null,
+          autoScore: editType === "MULTIPLE_CHOICE" ? Number(editScore || 1) : 0,
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
 
       setEditing(false);
       await fetchTest();
-    } catch (err) {
-      console.error("Update question error:", err);
+    } catch (err: any) {
+      console.error("Update question error:", err.response?.status, err.response?.data);
     }
   }
 
   async function handleAddQuestion() {
+    if (!token) return;
     setAdding(true);
     try {
-      await api.post(`/admin/tests/${id}/questions`, {
-        text,
-        questionType,
-        options,
-        answer,
-        autoScore: questionType === "MULTIPLE_CHOICE" ? Number(autoScore || 1) : 0,
-      });
+      await api.post(
+        `/admin/tests/${id}/questions`,
+        {
+          text,
+          questionType,
+          options,
+          answer,
+          autoScore: questionType === "MULTIPLE_CHOICE" ? Number(autoScore || 1) : 0,
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
 
+      // reset form
       setText("");
       setOptions([""]);
       setAnswer("");
+      setAutoScore("");
       setQuestionType("MULTIPLE_CHOICE");
 
       await fetchTest();
-    } catch (err) {
-      console.error("Add question error:", err);
+    } catch (err: any) {
+      console.error("Add question error:", err.response?.status, err.response?.data);
     } finally {
       setAdding(false);
     }
@@ -104,17 +132,31 @@ export default function TestDetailPage() {
   // DELETE SINGLE QUESTION
   // =======================
   async function deleteQuestion(qid: number) {
-    await api.delete(`/admin/questions/${qid}`);
-    await fetchTest();
+    if (!token) return;
+    try {
+      await api.delete(`/admin/questions/${qid}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      await fetchTest();
+    } catch (err: any) {
+      console.error("Delete question error:", err.response?.status, err.response?.data);
+    }
   }
 
   // =======================
   // DELETE ALL QUESTION
   // =======================
   async function deleteAll() {
-    if (confirm("Yakin ingin menghapus semua soal?")) {
-      await api.delete(`/admin/tests/${id}/questions`);
+    if (!token) return;
+    if (!confirm("Yakin ingin menghapus semua soal?")) return;
+
+    try {
+      await api.delete(`/admin/tests/${id}/questions`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       await fetchTest();
+    } catch (err: any) {
+      console.error("Delete all questions error:", err.response?.status, err.response?.data);
     }
   }
 
@@ -123,7 +165,12 @@ export default function TestDetailPage() {
 
   return (
     <div className="p-8 space-y-8 text-black">
-      <h1 className="text-3xl font-bold">Detail Test</h1>
+      <div className="flex items-center gap-4">
+        <Link href="/admin/dashboard/input/pmjd" className="text-blue-600 hover:underline">
+          ← Kembali
+        </Link>
+        <h1 className="text-3xl font-bold">Detail Test</h1>
+      </div>
 
       {/* ============================
           TEST INFO
@@ -353,4 +400,3 @@ export default function TestDetailPage() {
     </div>
   );
 }
-

@@ -80,7 +80,7 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const res = await api.post("/api/login", { registrationNumber });
+      const res = await api.post("/login", { registrationNumber });
 
       if (res.data.message === "OTP sent") {
         document.cookie = `authStage=otp; path=/; max-age=600`; // 10 min
@@ -103,7 +103,7 @@ export default function LoginPage() {
           router.push("/admin/dashboard");
         } else {
           // Redirect non-admin users back to FrontEnd Digital Literacy Test
-          window.location.href = "http://localhost:3000/dashboard/camaba";
+          window.location.href = "http://localhost:3001/dashboard/camaba";
         }
         return;
       }

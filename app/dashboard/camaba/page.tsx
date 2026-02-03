@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import api from "@/lib/api";
+import { LogOut } from "lucide-react";
 
 /* =====================================================
    DASHBOARD CAMABA – ACCESSIBILITY & SCREEN READER FIRST
@@ -71,11 +73,18 @@ export default function CamabaDashboardPage() {
       return;
     }
 
-    fetch("http://localhost:4000/api/test", {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((r) => r.json())
-      .then(setTests)
+    api
+      .get("/test", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      .then((r) => {
+        setTests(r.data);
+      })
+      .catch((err) => {
+        console.error("Gagal mengambil data tes:", err);
+      })
       .finally(() => setLoading(false));
   }, [router]);
 
@@ -212,7 +221,19 @@ export default function CamabaDashboardPage() {
       )}
 
       {/* ================= HEADER ================= */}
-      <h1 className="text-3xl font-bold mb-6">Dashboard Calon Mahasiswa</h1>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold">Dashboard Calon Mahasiswa</h1>
+        <button
+          onClick={() => {
+            localStorage.removeItem("token");
+            router.push("/login");
+          }}
+          className="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition"
+        >
+          <LogOut className="w-5 h-5" />
+          Logout
+        </button>
+      </div>
 
       {!useTTS && <p className="mb-4 text-black">Klik tombol pada kartu tes untuk memulai atau melihat hasil.</p>}
 
