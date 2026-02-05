@@ -23,7 +23,7 @@ export default function AdminDashboard() {
   const fetchTests = useCallback(async () => {
     if (!token) return;
     try {
-      const res = await api.get("/admin/tests", {
+      const res = await api.get("/api/admin/tests", {
         headers: { Authorization: `Bearer ${token}` },
       });
       console.log("Tests response:", res.data);
@@ -37,7 +37,7 @@ export default function AdminDashboard() {
   const fetchAttempts = useCallback(async () => {
     if (!token) return;
     try {
-      const res = await api.get("/admin/attempts", {
+      const res = await api.get("/api/admin/attempts", {
         headers: { Authorization: `Bearer ${token}` },
       });
       console.log("Attempts response:", res.data);
