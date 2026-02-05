@@ -52,7 +52,7 @@ export default function OTPPage() {
     setError("");
 
     try {
-      const res = await api.post("/api/verify-admin", {
+      const res = await api.post("/verify-admin", {
         registrationNumber,
         otp: code,
       });
@@ -88,7 +88,7 @@ export default function OTPPage() {
     setError("");
     setInfo("");
     try {
-      await api.post("/api/resend-otp", { registrationNumber });
+      await api.post("/resend-otp", { registrationNumber });
       setInfo("OTP telah dikirim ulang. Periksa email Anda.");
       // start 30s cooldown
       setCooldown(30);

@@ -80,7 +80,7 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const res = await api.post("/api/login", { registrationNumber });
+      const res = await api.post("/login", { registrationNumber });
 
       if (res.data.message === "OTP sent") {
         document.cookie = `authStage=otp; path=/; max-age=600`; // 10 min
