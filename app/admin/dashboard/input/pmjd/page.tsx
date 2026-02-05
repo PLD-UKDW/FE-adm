@@ -23,7 +23,7 @@ export default function AdminDashboard() {
   const fetchTests = useCallback(async () => {
     if (!token) return;
     try {
-      const res = await api.get("/admin/tests", {
+      const res = await api.get("/api/admin/tests", {
         headers: { Authorization: `Bearer ${token}` },
       });
       console.log("Tests response:", res.data);
@@ -37,7 +37,7 @@ export default function AdminDashboard() {
   const fetchAttempts = useCallback(async () => {
     if (!token) return;
     try {
-      const res = await api.get("/admin/attempts", {
+      const res = await api.get("/api/admin/attempts", {
         headers: { Authorization: `Bearer ${token}` },
       });
       console.log("Attempts response:", res.data);
@@ -82,7 +82,7 @@ export default function AdminDashboard() {
         <div className="flex justify-between items-center mb-3">
           <h2 className="text-2xl font-semibold">Daftar Test</h2>
 
-          <Link href="/admin/dashboard/input/pmjd/create" className="px-4 py-2 bg-blue-600 text-white rounded shadow">
+          <Link href="/api/admin/dashboard/input/pmjd/create" className="px-4 py-2 bg-blue-600 text-white rounded shadow">
             + Buat Test Baru
           </Link>
         </div>
@@ -155,7 +155,7 @@ export default function AdminDashboard() {
                   <td className="p-3">{a.passStatus ?? <span className="text-gray-500">Belum dinilai</span>}</td>
 
                   <td className="p-3">
-                    <Link href={`/admin/attempts/${a.id}`} className="text-blue-600 underline">
+                    <Link href={`/api/admin/attempts/${a.id}`} className="text-blue-600 underline">
                       Review / Nilai
                     </Link>
                   </td>

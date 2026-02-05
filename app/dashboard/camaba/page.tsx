@@ -178,12 +178,12 @@ export default function CamabaDashboardPage() {
         if (t.completed) {
           speakQueue([`Membuka hasil ${t.title}.`]);
           setTimeout(() => {
-            router.push(`/test/${t.id}/result?attemptId=${t.latestAttemptId}`);
+            router.push(`/api/test/${t.id}/result?attemptId=${t.latestAttemptId}`);
           }, 600);
         } else {
           speakQueue([`Memulai ${t.title}.`]);
           setTimeout(() => {
-            router.push(`/test/${t.id}`);
+            router.push(`/api/test/${t.id}`);
           }, 600);
         }
       }
@@ -226,7 +226,7 @@ export default function CamabaDashboardPage() {
         <button
           onClick={() => {
             localStorage.removeItem("token");
-            router.push("/login");
+            router.push("/api/login");
           }}
           className="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition"
         >
@@ -247,7 +247,7 @@ export default function CamabaDashboardPage() {
             <span className={`inline-block mt-3 px-3 py-1 text-sm rounded-full ${t.completed ? "bg-green-100 text-green-700" : "bg-green-50 text-green-800"}`}>{t.completed ? "Sudah mengerjakan" : "Belum mengerjakan"}</span>
 
             {!useTTS && (
-              <button onClick={() => router.push(t.completed ? `/test/${t.id}/result?attemptId=${t.latestAttemptId}` : `/test/${t.id}`)} className="mt-4 w-full bg-green-600 text-white py-2 rounded-lg">
+              <button onClick={() => router.push(t.completed ? `/test/${t.id}/result?attemptId=${t.latestAttemptId}` : `/api/test/${t.id}`)} className="mt-4 w-full bg-green-600 text-white py-2 rounded-lg">
                 {t.completed ? "Lihat Hasil" : "Mulai Mengerjakan"}
               </button>
             )}

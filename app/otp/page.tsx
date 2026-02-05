@@ -52,7 +52,7 @@ export default function OTPPage() {
     setError("");
 
     try {
-      const res = await api.post("/verify-admin", {
+      const res = await api.post("/api/verify-admin", {
         registrationNumber,
         otp: code,
       });
@@ -65,7 +65,7 @@ export default function OTPPage() {
       document.cookie = `authToken=${res.data.token}; path=/; max-age=86400`; // 1 day
       document.cookie = `role=ADMIN; path=/; max-age=86400`;
 
-      router.push("/admin/dashboard");
+      router.push("/api/admin/dashboard");
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
         setError(err.response?.data?.message || "OTP salah atau gagal.");
@@ -88,7 +88,7 @@ export default function OTPPage() {
     setError("");
     setInfo("");
     try {
-      await api.post("/resend-otp", { registrationNumber });
+      await api.post("/api/resend-otp", { registrationNumber });
       setInfo("OTP telah dikirim ulang. Periksa email Anda.");
       // start 30s cooldown
       setCooldown(30);

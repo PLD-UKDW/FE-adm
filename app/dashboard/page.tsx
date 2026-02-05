@@ -26,7 +26,7 @@ export default function DashboardPeserta() {
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) {
-      router.push("/login");
+      router.push("/api/login");
       return;
     }
 
@@ -36,10 +36,10 @@ export default function DashboardPeserta() {
   const fetchData = async (token: string) => {
     try {
       const [testRes, statusRes] = await Promise.all([
-        api.get("/test", {
+        api.get("/api/test", {
           headers: { Authorization: `Bearer ${token}` },
         }),
-        api.get("/test/status", {
+        api.get("/api/test/status", {
           headers: { Authorization: `Bearer ${token}` },
         }),
       ]);
