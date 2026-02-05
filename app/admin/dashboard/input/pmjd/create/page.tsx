@@ -55,7 +55,7 @@ export default function CreateTestPage() {
 
       // Redirect ke halaman pmjd setelah 1 detik
       setTimeout(() => {
-        router.push("/api/admin/dashboard/input/pmjd");
+        router.push("/admin/dashboard/input/pmjd");
       }, 1000);
     } catch (err) {
       console.error("Create test error:", err);
@@ -68,7 +68,7 @@ export default function CreateTestPage() {
   return (
     <div className="p-6 max-w-4xl mx-auto text-black">
       <div className="flex items-center gap-4 mb-6">
-        <Link href="/api/admin/dashboard/input/pmjd" className="text-blue-600 hover:underline">
+        <Link href="/admin/dashboard/input/pmjd" className="text-blue-600 hover:underline">
           ← Kembali
         </Link>
         <h1 className="text-2xl font-bold">Buat Test Baru</h1>
@@ -95,7 +95,7 @@ export default function CreateTestPage() {
             <button type="submit" disabled={saving} className="px-4 py-2 bg-blue-600 text-white rounded shadow hover:bg-blue-700 disabled:opacity-50">
               {saving ? "Menyimpan..." : "Buat Test"}
             </button>
-            <Link href="/api/admin/dashboard/input/pmjd" className="px-4 py-2 bg-gray-300 text-gray-700 rounded shadow hover:bg-gray-400">
+            <Link href="/admin/dashboard/input/pmjd" className="px-4 py-2 bg-gray-300 text-gray-700 rounded shadow hover:bg-gray-400">
               Batal
             </Link>
           </div>

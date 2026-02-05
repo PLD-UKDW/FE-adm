@@ -65,7 +65,7 @@ export default function OTPPage() {
       document.cookie = `authToken=${res.data.token}; path=/; max-age=86400`; // 1 day
       document.cookie = `role=ADMIN; path=/; max-age=86400`;
 
-      router.push("/api/admin/dashboard");
+      router.push("/admin/dashboard");
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
         setError(err.response?.data?.message || "OTP salah atau gagal.");

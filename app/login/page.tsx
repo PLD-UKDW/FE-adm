@@ -100,7 +100,7 @@ export default function LoginPage() {
         document.cookie = `role=${role}; path=/; max-age=86400`;
 
         if (role === "ADMIN") {
-          router.push("/apiX/admin/dashboard");
+          router.push("/admin/dashboard");
         } else {
           // Redirect non-admin users back to FrontEnd Digital Literacy Test
           window.location.href = "http://localhost:3001/dashboard/camaba";

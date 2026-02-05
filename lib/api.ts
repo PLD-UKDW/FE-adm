@@ -27,7 +27,7 @@ const base =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") || "http://localhost:4000";
 
 const api = axios.create({
-  baseURL: `${base}/api`,
+  baseURL: `${base}`,
 });
 
 export default api;

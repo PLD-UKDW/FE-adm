@@ -82,7 +82,7 @@ export default function AdminDashboard() {
         <div className="flex justify-between items-center mb-3">
           <h2 className="text-2xl font-semibold">Daftar Test</h2>
 
-          <Link href="/api/admin/dashboard/input/pmjd/create" className="px-4 py-2 bg-blue-600 text-white rounded shadow">
+          <Link href="/admin/dashboard/input/pmjd/create" className="px-4 py-2 bg-blue-600 text-white rounded shadow">
             + Buat Test Baru
           </Link>
         </div>
@@ -155,7 +155,7 @@ export default function AdminDashboard() {
                   <td className="p-3">{a.passStatus ?? <span className="text-gray-500">Belum dinilai</span>}</td>
 
                   <td className="p-3">
-                    <Link href={`/api/admin/attempts/${a.id}`} className="text-blue-600 underline">
+                    <Link href={`/admin/attempts/${a.id}`} className="text-blue-600 underline">
                       Review / Nilai
                     </Link>
                   </td>
