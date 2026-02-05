@@ -55,7 +55,7 @@ export default function CreateTestPage() {
 
       // Redirect ke halaman pmjd setelah 1 detik
       setTimeout(() => {
-        router.push("/admin/dashboard/input/pmjd");
+        router.push("/api/admin/dashboard/input/pmjd");
       }, 1000);
     } catch (err) {
       console.error("Create test error:", err);
