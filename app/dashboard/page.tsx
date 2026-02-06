@@ -26,7 +26,7 @@ export default function DashboardPeserta() {
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) {
-      router.push("/api/login");
+      router.push("/login");
       return;
     }
 

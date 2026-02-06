@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import api from "@/lib/api";
 
 /* =====================================================
    DO TEST PAGE – SCREEN READER FIRST
@@ -56,20 +57,15 @@ export default function DoTestPage() {
 
     setUseTTS(localStorage.getItem("accessMode") !== "no-tts");
 
-    const API_URL = process.env.NEXT_PUBLIC_API_URL;
-
-    fetch(`${API_URL}/test/${id}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    })
-      .then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
+    api
+      .get(`/api/test/${id}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       })
-      .then((data) => {
-        setTest(data);
-        setQuestions(data.questions || []);
+      .then((r) => {
+        setTest(r.data);
+        setQuestions(r.data.questions || []);
       })
       .catch((err) => {
         console.error("Gagal mengambil data tes:", err);
@@ -180,40 +176,39 @@ export default function DoTestPage() {
   /* ==========================
      SUBMIT
   ========================== */
-const handleSubmit = async () => {
-  const token = localStorage.getItem("token");
-  const API_URL = process.env.NEXT_PUBLIC_API_URL;
+  const handleSubmit = async () => {
+    const token = localStorage.getItem("token");
+    const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
-  setSubmitting(true);
+    setSubmitting(true);
 
-  try {
-    const res = await fetch(`${API_URL}/test/${id}/submit`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ answers }),
-    });
+    try {
+      const res = await fetch(`${API_URL}/api/test/${id}/submit`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ answers }),
+      });
 
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-    const result = await res.json();
-    const attemptId = result.attempt?.id;
-    if (!attemptId) return;
+      const result = await res.json();
+      const attemptId = result.attempt?.id;
+      if (!attemptId) return;
 
-    speakQueue(["Jawaban berhasil dikirim. Membuka hasil tes."]);
+      speakQueue(["Jawaban berhasil dikirim. Membuka hasil tes."]);
 
-    setTimeout(() => {
-      router.push(`/test/${id}/result?attemptId=${attemptId}`);
-    }, 800);
-  } catch (err) {
-    console.error("Gagal submit jawaban:", err);
-  } finally {
-    setSubmitting(false);
-  }
-};
-
+      setTimeout(() => {
+        router.push(`/test/${id}/result?attemptId=${attemptId}`);
+      }, 800);
+    } catch (err) {
+      console.error("Gagal submit jawaban:", err);
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   /* ==========================
      UI

@@ -74,7 +74,7 @@ export default function CamabaDashboardPage() {
     }
 
     api
-      .get("/test", {
+      .get("/api/test", {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -89,10 +89,20 @@ export default function CamabaDashboardPage() {
   }, [router]);
 
   /* =====================================================
-     INTRO + POPUP (SELALU MUNCUL SETELAH LOGIN)
+     INTRO + POPUP (MUNCUL SEKALI PER SESI LOGIN)
   ===================================================== */
   useEffect(() => {
     if (loading) return;
+
+    // Cek apakah popup sudah ditampilkan dalam sesi login ini
+    const popupShown = sessionStorage.getItem("popupShown");
+    if (popupShown === "true") {
+      // Popup sudah ditampilkan, tidak perlu muncul lagi
+      return;
+    }
+
+    // Tandai popup sudah ditampilkan untuk sesi ini
+    sessionStorage.setItem("popupShown", "true");
 
     setUseTTS(true);
     setShowAccessPopup(true);
@@ -178,12 +188,12 @@ export default function CamabaDashboardPage() {
         if (t.completed) {
           speakQueue([`Membuka hasil ${t.title}.`]);
           setTimeout(() => {
-            router.push(`/api/test/${t.id}/result?attemptId=${t.latestAttemptId}`);
+            router.push(`/test/${t.id}/result?attemptId=${t.latestAttemptId}`);
           }, 600);
         } else {
           speakQueue([`Memulai ${t.title}.`]);
           setTimeout(() => {
-            router.push(`/api/test/${t.id}`);
+            router.push(`/test/${t.id}`);
           }, 600);
         }
       }
@@ -225,8 +235,10 @@ export default function CamabaDashboardPage() {
         <h1 className="text-3xl font-bold">Dashboard Calon Mahasiswa</h1>
         <button
           onClick={() => {
+            window.speechSynthesis.cancel(); // Hentikan TTS saat logout
             localStorage.removeItem("token");
-            router.push("/api/login");
+            sessionStorage.removeItem("popupShown"); // Reset popup flag saat logout
+            window.location.href = "/login"; // Gunakan full redirect agar state benar-benar reset
           }}
           className="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition"
         >
@@ -247,7 +259,7 @@ export default function CamabaDashboardPage() {
             <span className={`inline-block mt-3 px-3 py-1 text-sm rounded-full ${t.completed ? "bg-green-100 text-green-700" : "bg-green-50 text-green-800"}`}>{t.completed ? "Sudah mengerjakan" : "Belum mengerjakan"}</span>
 
             {!useTTS && (
-              <button onClick={() => router.push(t.completed ? `/test/${t.id}/result?attemptId=${t.latestAttemptId}` : `/api/test/${t.id}`)} className="mt-4 w-full bg-green-600 text-white py-2 rounded-lg">
+              <button onClick={() => router.push(t.completed ? `/test/${t.id}/result?attemptId=${t.latestAttemptId}` : `/test/${t.id}`)} className="mt-4 w-full bg-green-600 text-white py-2 rounded-lg">
                 {t.completed ? "Lihat Hasil" : "Mulai Mengerjakan"}
               </button>
             )}
