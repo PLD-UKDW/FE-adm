@@ -178,24 +178,21 @@ export default function DoTestPage() {
   ========================== */
   const handleSubmit = async () => {
     const token = localStorage.getItem("token");
-    const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
     setSubmitting(true);
 
     try {
-      const res = await fetch(`${API_URL}/api/test/${id}/submit`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+      const res = await api.post(
+        `/api/test/${id}/submit`,
+        { answers },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
         },
-        body: JSON.stringify({ answers }),
-      });
+      );
 
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-      const result = await res.json();
-      const attemptId = result.attempt?.id;
+      const attemptId = res.data.attempt?.id;
       if (!attemptId) return;
 
       speakQueue(["Jawaban berhasil dikirim. Membuka hasil tes."]);

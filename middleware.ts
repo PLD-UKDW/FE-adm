@@ -33,5 +33,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/otp/:path*", "/admin/:path*", "/dashboard/camaba/:path*"],
+  matcher: ["/otp/:path*", "/admin/:path*", "/dashboard/camaba", "/dashboard/camaba/:path*"],
 };
