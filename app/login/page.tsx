@@ -64,26 +64,166 @@
 import api from "@/lib/api";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
+
 const FRONTEND_URL = process.env.NEXT_PUBLIC_FRONTEND_URL || "http://localhost:3001";
 
 export default function LoginPage() {
   const [registrationNumber, setRegistrationNumber] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
+  const [lastCharIndex, setLastCharIndex] = useState(0);
 
   const router = useRouter();
+  const inputRef = useRef<HTMLInputElement>(null);
 
+  /* ==========================
+     TEXT TO SPEECH WITH PROMISE (WAIT UNTIL FINISH)
+  ========================== */
+  const speak = (text: string, cancelPrevious: boolean = true) => {
+    if (typeof window === "undefined") return;
+
+    if (cancelPrevious) {
+      window.speechSynthesis.cancel();
+    }
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = "id-ID";
+    utterance.rate = 0.85; // lebih tenang
+    utterance.pitch = 1;
+    utterance.volume = 1;
+
+    window.speechSynthesis.speak(utterance);
+  };
+
+  /* ==========================
+     SPEAK SINGLE CHARACTER
+  ========================== */
+  const speakChar = (char: string) => {
+    if (typeof window === "undefined") return;
+
+    window.speechSynthesis.cancel();
+
+    const utterance = new SpeechSynthesisUtterance(char);
+    utterance.lang = "id-ID";
+    utterance.rate = 0.8; // lebih jelas untuk angka
+    utterance.pitch = 1;
+
+    window.speechSynthesis.speak(utterance);
+  };
+
+  /* ==========================
+     SPEAK AND WAIT UNTIL FINISH
+  ========================== */
+  const speakAndWait = (text: string): Promise<void> => {
+    return new Promise((resolve) => {
+      if (typeof window === "undefined") {
+        resolve();
+        return;
+      }
+
+      window.speechSynthesis.cancel();
+
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = "id-ID";
+      utterance.rate = 0.85;
+      utterance.pitch = 1;
+      utterance.volume = 1;
+
+      utterance.onend = () => resolve();
+      utterance.onerror = () => resolve();
+
+      window.speechSynthesis.speak(utterance);
+    });
+  };
+
+  /* ==========================
+     AUTO SPEAK WHEN PAGE LOAD
+  ========================== */
+  useEffect(() => {
+    // Delay untuk memastikan TTS halaman sebelumnya sudah selesai
+    const timeout = setTimeout(() => {
+      window.speechSynthesis.cancel();
+      speak("Halaman login. ... Tekan panah kanan untuk mengetik nomor registrasi. ... Tekan Escape untuk mendengar ulang. ... Tekan Spasi untuk masuk.");
+    }, 500);
+
+    return () => clearTimeout(timeout);
+  }, []);
+
+  /* ==========================
+     SPEAK EACH CHARACTER WHEN TYPING
+  ========================== */
+  useEffect(() => {
+    if (isTyping && registrationNumber.length > lastCharIndex) {
+      // Karakter baru ditambahkan, ucapkan karakter tersebut
+      const newChar = registrationNumber[registrationNumber.length - 1];
+      speakChar(newChar);
+      setLastCharIndex(registrationNumber.length);
+    } else if (registrationNumber.length < lastCharIndex) {
+      // Karakter dihapus, ucapkan "hapus"
+      speakChar("hapus");
+      setLastCharIndex(registrationNumber.length);
+    }
+  }, [registrationNumber, isTyping, lastCharIndex]);
+
+  /* ==========================
+     KEYBOARD CONTROL
+  ========================== */
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Panah kanan → mulai mengetik
+      if (e.key === "ArrowRight") {
+        setIsTyping(true);
+        inputRef.current?.focus();
+        speak("Silakan ketik nomor registrasi.");
+      }
+
+      // Panah kiri → ulangi instruksi
+      if (e.key === "ArrowLeft") {
+        speak("Tekan panah kanan untuk mengetik. ... Tekan Escape untuk mendengar ulang. ... Tekan Spasi untuk masuk.");
+      }
+
+      // ESC → keluar dari mode mengetik dan baca seluruh hasil
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setIsTyping(false);
+        inputRef.current?.blur();
+
+        if (registrationNumber.trim()) {
+          speak(`Nomor registrasi Anda adalah ... ${registrationNumber.split("").join(" ... ")}`);
+        } else {
+          speak("Nomor registrasi masih kosong.");
+        }
+      }
+
+      // Spasi → submit login (jika tidak sedang mengetik)
+      if (e.code === "Space" && !isTyping) {
+        e.preventDefault();
+        speak("Mengirim login.");
+        document.querySelector("form")?.requestSubmit();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isTyping, registrationNumber]);
+
+  /* ==========================
+     LOGIN FUNCTION
+  ========================== */
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setLoading(true);
 
+    await speakAndWait("Sedang memproses login. ... Mohon tunggu.");
+
     try {
       const res = await api.post("/api/login", { registrationNumber });
 
       if (res.data.message === "OTP sent") {
-        document.cookie = `authStage=otp; path=/; max-age=600`; // 10 min
+        document.cookie = `authStage=otp; path=/; max-age=600`;
         document.cookie = `pendingRegNumber=${registrationNumber}; path=/; max-age=600`;
         router.push(`/otp?registrationNumber=${registrationNumber}`);
         return;
@@ -95,27 +235,31 @@ export default function LoginPage() {
         localStorage.setItem("token", res.data.token);
         localStorage.setItem("user", JSON.stringify(res.data.user));
 
-        // Set cookies for middleware
-        document.cookie = `authToken=${res.data.token}; path=/; max-age=86400`; // 1 day
+        document.cookie = `authToken=${res.data.token}; path=/; max-age=86400`;
         document.cookie = `role=${role}; path=/; max-age=86400`;
 
         if (role === "ADMIN") {
+          await speakAndWait("Login berhasil. ... Anda akan dialihkan ke halaman admin.");
           router.push("/admin/dashboard");
         } else {
-          // Redirect non-admin users back to FrontEnd Digital Literacy Test
+          await speakAndWait("Login berhasil. ... Anda akan dialihkan ke dashboard.");
           window.location.href = "http://localhost:3001/dashboard/camaba";
         }
         return;
       }
 
       setError("Unexpected response from server");
+      speak("Terjadi kesalahan pada sistem.");
     } catch (err: unknown) {
-      let message = "Login failed";
+      let message = "Login gagal";
       if (typeof err === "object" && err !== null) {
-        const maybeResp = err as { response?: { data?: { message?: string } } };
+        const maybeResp = err as {
+          response?: { data?: { message?: string } };
+        };
         message = maybeResp.response?.data?.message || (err instanceof Error ? err.message : message);
       }
       setError(message);
+      speak("Login gagal. Periksa kembali nomor registrasi Anda.");
     } finally {
       setLoading(false);
     }
@@ -136,7 +280,9 @@ export default function LoginPage() {
         {/* FORM LOGIN */}
         <form onSubmit={handleLogin} className="mt-4">
           <label className="text-white text-sm mb-2 block">Nomor Registrasi</label>
+
           <input
+            ref={inputRef}
             type="text"
             name="registrationNumber"
             value={registrationNumber}
@@ -155,7 +301,6 @@ export default function LoginPage() {
           <button
             type="button"
             onClick={() => {
-              // clear pending cookies if any
               document.cookie = "authStage=; Max-Age=0; path=/";
               document.cookie = "pendingRegNumber=; Max-Age=0; path=/";
               window.location.href = FRONTEND_URL;

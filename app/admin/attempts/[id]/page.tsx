@@ -16,11 +16,15 @@ export default function AttemptReview() {
   const [statusOverride, setStatusOverride] = useState("");
   const [loading, setLoading] = useState(true);
   const [savingEssay, setSavingEssay] = useState<number | null>(null);
+  const [savingMC, setSavingMC] = useState<number | null>(null);
 
   // State untuk input nilai essay per pertanyaan (belum disimpan)
   const [essayInputs, setEssayInputs] = useState<Record<number, string>>({});
+  // State untuk input nilai pilihan ganda/checkbox/radio per pertanyaan
+  const [mcInputs, setMcInputs] = useState<Record<number, string>>({});
 
   const essayScores = attempt?.essayScores || {};
+  const mcScores = attempt?.mcScores || {};
   const answers = attempt?.answers || {};
 
   // Sync essayInputs dengan essayScores dari server saat data berubah
@@ -33,6 +37,17 @@ export default function AttemptReview() {
       setEssayInputs(inputs);
     }
   }, [attempt?.essayScores]);
+
+  // Sync mcInputs dengan mcScores dari server saat data berubah
+  useEffect(() => {
+    if (attempt?.mcScores) {
+      const inputs: Record<number, string> = {};
+      Object.entries(attempt.mcScores).forEach(([key, val]) => {
+        inputs[Number(key)] = String(val);
+      });
+      setMcInputs(inputs);
+    }
+  }, [attempt?.mcScores]);
 
   // ===============================
   // LOAD TOKEN
@@ -94,6 +109,9 @@ export default function AttemptReview() {
 
     setSavingEssay(questionId);
 
+    // Simpan posisi scroll sebelum fetch
+    const scrollPosition = window.scrollY;
+
     try {
       await fetch(`http://localhost:4000/api/admin/attempts/${attemptId}/essay-score`, {
         method: "POST",
@@ -107,11 +125,53 @@ export default function AttemptReview() {
         }),
       });
 
-      fetchDetail();
+      await fetchDetail();
+
+      // Kembalikan posisi scroll setelah fetch
+      requestAnimationFrame(() => {
+        window.scrollTo(0, scrollPosition);
+      });
     } catch (err) {
       console.error("saveEssayScore:", err);
     } finally {
       setSavingEssay(null);
+    }
+  }
+
+  // ===============================
+  // SAVE MC/CHECKBOX/RADIO SCORE PER QUESTION
+  // ===============================
+  async function saveMCScore(questionId: number, score: string) {
+    if (!token) return;
+
+    setSavingMC(questionId);
+
+    // Simpan posisi scroll sebelum fetch
+    const scrollPosition = window.scrollY;
+
+    try {
+      await fetch(`http://localhost:4000/api/admin/attempts/${attemptId}/mc-score`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          questionId,
+          score: Number(score),
+        }),
+      });
+
+      await fetchDetail();
+
+      // Kembalikan posisi scroll setelah fetch
+      requestAnimationFrame(() => {
+        window.scrollTo(0, scrollPosition);
+      });
+    } catch (err) {
+      console.error("saveMCScore:", err);
+    } finally {
+      setSavingMC(null);
     }
   }
 
@@ -223,6 +283,15 @@ export default function AttemptReview() {
           const hasUnsavedChanges = currentInput !== String(savedScore ?? "");
           const studentAnswer = answers[q.id] || answers[String(q.id)];
 
+          // Untuk soal pilihan ganda/checkbox/radio
+          const mcCurrentInput = mcInputs[q.id] ?? "";
+          const mcSavedScore = mcScores[q.id];
+          const mcHasUnsavedChanges = mcCurrentInput !== String(mcSavedScore ?? "");
+          // Hitung auto score berdasarkan jawaban benar/salah
+          const autoCalculatedScore = studentAnswer === q.answer ? q.autoScore || 1 : 0;
+          // Gunakan manual score jika ada, jika tidak gunakan auto calculated
+          const displayMCScore = mcSavedScore !== undefined ? mcSavedScore : autoCalculatedScore;
+
           return (
             <div key={q.id} className={`p-4 border rounded-lg space-y-2 ${isEssay ? "bg-yellow-50 border-yellow-200" : "bg-gray-50"}`}>
               <div className="flex justify-between items-start">
@@ -230,7 +299,31 @@ export default function AttemptReview() {
                   <span className="text-gray-500 mr-2">{index + 1}.</span>
                   {q.text}
                 </p>
-                <span className={`text-xs px-2 py-1 rounded ${isEssay ? "bg-yellow-200 text-yellow-800" : "bg-blue-100 text-blue-800"}`}>{isEssay ? "Essay" : q.questionType || "Pilihan Ganda"}</span>
+                <div className="flex items-center gap-2">
+                  {/* Tampilkan score pada card */}
+                  {isEssay && savedScore !== undefined && (
+                    <span className="text-sm font-semibold px-2 py-1 rounded bg-green-100 text-green-700">
+                      Nilai: {savedScore}/{q.autoScore || 100}
+                    </span>
+                  )}
+                  {isEssay && savedScore === undefined && <span className="text-sm px-2 py-1 rounded bg-gray-100 text-gray-500">Belum dinilai</span>}
+
+                  {/* Tampilkan score untuk pilihan ganda, checkbox, radio button */}
+                  {/* {!isEssay && (
+                    <span className={`text-sm font-semibold px-2 py-1 rounded ${
+                      mcSavedScore !== undefined 
+                        ? "bg-purple-100 text-purple-700" 
+                        : displayMCScore > 0 
+                          ? "bg-green-100 text-green-700" 
+                          : "bg-red-100 text-red-700"
+                    }`}>
+                      Nilai: {displayMCScore}/{q.autoScore || 1}
+                      {mcSavedScore !== undefined && <span className="ml-1 text-xs">(manual)</span>}
+                    </span>
+                  )} */}
+
+                  <span className={`text-xs px-2 py-1 rounded ${isEssay ? "bg-yellow-200 text-yellow-800" : "bg-blue-100 text-blue-800"}`}>{isEssay ? "Essay" : q.questionType || "Pilihan Ganda"}</span>
+                </div>
               </div>
 
               {/* Tampilkan opsi jika ada (untuk pilihan ganda) */}
@@ -301,7 +394,6 @@ export default function AttemptReview() {
           );
         })}
       </div>
-
       {/* ===== ESSAY SCORING SUMMARY ===== */}
       {(() => {
         const essayQuestions = questions.filter((q: any) => q.questionType === "ESSAY") || [];

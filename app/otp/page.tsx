@@ -31,10 +31,7 @@ export default function OTPPage() {
     }
   };
 
-  const handleBackspace = (
-    e: React.KeyboardEvent<HTMLInputElement>,
-    index: number
-  ) => {
+  const handleBackspace = (e: React.KeyboardEvent<HTMLInputElement>, index: number) => {
     if (e.key === "Backspace" && !otp[index] && index > 0) {
       inputsRef.current[index - 1]?.focus();
     }
@@ -112,12 +109,9 @@ export default function OTPPage() {
   return (
     <div className="flex items-center justify-center min-h-screen bg-[#108607] p-4">
       <div className="bg-white rounded-2xl shadow-xl p-10 w-full max-w-md text-center">
-
         <h2 className="text-2xl font-bold text-[#108607]">Masukkan Kode OTP</h2>
 
-        <p className="text-gray-600 mt-2 mb-8">
-          Silakan masukkan 6 digit kode OTP yang dikirim ke nomor Anda.
-        </p>
+        <p className="text-gray-600 mt-2 mb-8">Silakan masukkan 6 digit kode OTP yang dikirim ke nomor Anda.</p>
 
         {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
         {info && <p className="text-green-600 text-sm mb-4">{info}</p>}
@@ -145,24 +139,12 @@ export default function OTPPage() {
           ))}
         </div>
 
-        <button
-          onClick={handleSubmit}
-          disabled={loading}
-          className="w-full bg-[#108607] text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition disabled:opacity-50"
-        >
+        <button onClick={handleSubmit} disabled={loading} className="w-full bg-[#108607] text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition disabled:opacity-50">
           {loading ? "Memverifikasi..." : "Verifikasi"}
         </button>
 
-        <button
-          onClick={handleResend}
-          disabled={resendLoading || cooldown > 0}
-          className="mt-4 text-sm text-[#108607] hover:underline disabled:opacity-50"
-        >
-          {resendLoading
-            ? "Mengirim..."
-            : cooldown > 0
-            ? `Kirim ulang dalam ${cooldown}s`
-            : "Kirim ulang OTP"}
+        <button onClick={handleResend} disabled={resendLoading || cooldown > 0} className="mt-4 text-sm text-[#108607] hover:underline disabled:opacity-50">
+          {resendLoading ? "Mengirim..." : cooldown > 0 ? `Kirim ulang dalam ${cooldown}s` : "Kirim ulang OTP"}
         </button>
       </div>
     </div>

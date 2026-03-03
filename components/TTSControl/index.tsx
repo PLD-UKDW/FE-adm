@@ -60,9 +60,20 @@ export default function TTSControl() {
     if (initVoice) setSelected(initVoice);
 
     const load = () => {
-      const v = synth.getVoices();
-      setVoices(v);
-      if (v.length && !selected) setSelected((prev) => prev ?? (v[0].voiceURI || v[0].name));
+      const allVoices = synth.getVoices();
+      // Prioritaskan suara Indonesia, lalu urutkan berdasarkan nama
+      const indonesianVoices = allVoices.filter((v) => v.lang.startsWith("id"));
+      const otherVoices = allVoices.filter((v) => !v.lang.startsWith("id"));
+      const sortedVoices = [...indonesianVoices, ...otherVoices];
+      setVoices(sortedVoices);
+
+      // Auto-select suara Indonesia jika tersedia dan belum ada pilihan
+      if (sortedVoices.length && !selected && !initVoice) {
+        const indonesianVoice = sortedVoices.find((v) => v.lang.startsWith("id"));
+        const defaultVoice = indonesianVoice ?? sortedVoices[0];
+        setSelected(defaultVoice.voiceURI || defaultVoice.name);
+        localStorage.setItem("tts:voice", defaultVoice.voiceURI || defaultVoice.name);
+      }
     };
     load();
     synth.onvoiceschanged = load;
@@ -86,11 +97,15 @@ export default function TTSControl() {
     };
   }, []);
 
+  // Cek apakah ada suara Indonesia yang tersedia
+  const hasIndonesianVoice = voices.some((v) => v.lang.startsWith("id"));
+
   if (!synth) return <div className="p-2 text-sm text-gray-600">TTS tidak tersedia di browser ini.</div>;
 
   return (
     <div className="p-3 border rounded-md bg-white shadow-sm w-full max-w-sm" aria-live="polite">
       <div className="text-sm text-gray-700 mb-1">Pengaturan TTS</div>
+      {!hasIndonesianVoice && <div className="text-xs text-amber-600 mb-2 p-2 bg-amber-50 rounded">💡 Suara bahasa Indonesia tidak tersedia di browser ini. Untuk dialek Indonesia yang lebih baik, gunakan browser Chrome atau Edge.</div>}
       <label className="sr-only">Pilih suara</label>
       <select
         className="w-full border px-2 py-1 rounded"
@@ -101,11 +116,28 @@ export default function TTSControl() {
           localStorage.setItem("tts:voice", e.target.value);
         }}
       >
-        {voices.map((v) => (
-          <option key={v.voiceURI || v.name} value={v.voiceURI || v.name}>
-            {v.name} — {v.lang}
-          </option>
-        ))}
+        {voices.length > 0 && voices.some((v) => v.lang.startsWith("id")) && (
+          <optgroup label="🇮🇩 Suara Indonesia">
+            {voices
+              .filter((v) => v.lang.startsWith("id"))
+              .map((v) => (
+                <option key={v.voiceURI || v.name} value={v.voiceURI || v.name}>
+                  {v.name}
+                </option>
+              ))}
+          </optgroup>
+        )}
+        {voices.length > 0 && voices.some((v) => !v.lang.startsWith("id")) && (
+          <optgroup label="Suara Lainnya">
+            {voices
+              .filter((v) => !v.lang.startsWith("id"))
+              .map((v) => (
+                <option key={v.voiceURI || v.name} value={v.voiceURI || v.name}>
+                  {v.name} — {v.lang}
+                </option>
+              ))}
+          </optgroup>
+        )}
       </select>
 
       <div className="flex items-center gap-2 mt-2">
@@ -145,6 +177,9 @@ export default function TTSControl() {
       </div>
 
       <div className="flex gap-2 mt-3">
+        <button onClick={() => speak("Halo, ini adalah contoh suara bahasa Indonesia.", { voiceURI: selected ?? undefined })} className="px-3 py-1 bg-green-600 text-white rounded text-sm" aria-label="Test suara Indonesia">
+          Test Suara
+        </button>
         <button onClick={() => resume()} className="px-3 py-1 bg-blue-600 text-white rounded text-sm" aria-label="Lanjutkan pembacaan">
           Resume
         </button>
