@@ -52,6 +52,7 @@ export default function BeritaAdminPage() {
   const [imageFiles, setImageFiles] = useState<File[]>([]);
     const [existingImages, setExistingImages] = useState<string[]>([]);
   const [isPublished, setIsPublished] = useState(false);
+  const [existingImageErrors, setExistingImageErrors] = useState<Record<number, boolean>>({});
   const [saving, setSaving] = useState(false);
   const [toasts, setToasts] = useState<{ id: number; message: string; type: "info"|"success"|"error" }[]>([]);
   const [list, setList] = useState<Array<{id:number; title:string; category?:{id:number; name:string}|null; isPublished:boolean; createdAt:string; tanggal?:string|null; lokasi?:string|null; content?:string; content_images?:string}>>([]);
@@ -227,6 +228,10 @@ export default function BeritaAdminPage() {
       imageFiles.forEach((file) => {
         formData.append("content_images", file);
       });
+      // Provide list of existing images to keep when updating
+      if (editingId) {
+        formData.append("keep_existing_images", existingImages.join(","));
+      }
 
       const url = editingId 
         ? `http://localhost:4000/api/update-berita/${editingId}` 
@@ -318,7 +323,7 @@ export default function BeritaAdminPage() {
     if (!trimmed) return "";
     if (/^https?:\/\//i.test(trimmed)) return trimmed;
     const cleaned = trimmed.replace(/^uploads[\\/]+berita[\\/]+/i, "");
-    return `http://localhost:4000/uploads/berita/${cleaned}`;
+    return `http://localhost:4000/uploads/berita/${encodeURIComponent(cleaned)}`;
   };
 
   const handleAddCategory = async (e:FormEvent) => {
@@ -424,27 +429,36 @@ export default function BeritaAdminPage() {
             <div className="md:col-span-2">
               <label className="block text-sm font-medium mb-2">Gambar Saat Ini</label>
               <div className="flex flex-wrap gap-2 p-3 bg-blue-50 rounded">
-                {existingImages.map((img, idx) => (
-                  <div key={idx} className="relative group">
-                    <Image
-                      src={getImageSrc(img)}
-                      alt={`existing-${idx}`}
-                      width={100}
-                      height={100}
-                      unoptimized
-                      className="w-24 h-24 object-cover rounded border-2 border-blue-300"
-                      onError={() => console.error(`Failed to load image: ${img}`)}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeExistingImage(idx)}
-                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm opacity-0 group-hover:opacity-100 transition"
-                      title="Ganti gambar (hapus yang lama)"
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
+                {existingImages.map((img, idx) => {
+                  const fallbackSrc = "/logo/logould.png"; // local placeholder in FE-adm/public/logo
+                  const src = existingImageErrors[idx] ? fallbackSrc : getImageSrc(img);
+                  return (
+                    <div key={idx} className="relative group">
+                      <Image
+                        src={src}
+                        alt={`existing-${idx}`}
+                        width={100}
+                        height={100}
+                        unoptimized
+                        className="w-24 h-24 object-cover rounded border-2 border-blue-300"
+                        onError={() => {
+                          // Swap to fallback once; avoid noisy console errors
+                          if (!existingImageErrors[idx]) {
+                            setExistingImageErrors(prev => ({ ...prev, [idx]: true }));
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeExistingImage(idx)}
+                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm opacity-0 group-hover:opacity-100 transition"
+                        title="Ganti gambar (hapus yang lama)"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
               <p className="text-xs text-gray-500 mt-1">Hover & klik × untuk menghapus dan ganti dengan gambar baru</p>
             </div>
