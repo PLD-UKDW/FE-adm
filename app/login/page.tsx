@@ -90,7 +90,7 @@ export default function LoginPage() {
 
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = "id-ID";
-    utterance.rate = 0.85; // lebih tenang
+    utterance.rate = 1.0; // lebih cepat
     utterance.pitch = 1;
     utterance.volume = 1;
 
@@ -107,7 +107,7 @@ export default function LoginPage() {
 
     const utterance = new SpeechSynthesisUtterance(char);
     utterance.lang = "id-ID";
-    utterance.rate = 0.8; // lebih jelas untuk angka
+    utterance.rate = 1.2; // lebih cepat
     utterance.pitch = 1;
 
     window.speechSynthesis.speak(utterance);
@@ -127,7 +127,7 @@ export default function LoginPage() {
 
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = "id-ID";
-      utterance.rate = 0.85;
+      utterance.rate = 1.2; // lebih cepat
       utterance.pitch = 1;
       utterance.volume = 1;
 
@@ -145,7 +145,7 @@ export default function LoginPage() {
     // Delay untuk memastikan TTS halaman sebelumnya sudah selesai
     const timeout = setTimeout(() => {
       window.speechSynthesis.cancel();
-      speak("Halaman login. ... Tekan panah kanan untuk mengetik nomor registrasi. ... Tekan Escape untuk mendengar ulang. ... Tekan Spasi untuk masuk.");
+      speak("Halaman login. ... Tekan Spasi untuk mengetik nomor registrasi. ... Tekan Escape untuk keluar dari mode mengetik. ... Tekan Enter untuk masuk.");
     }, 500);
 
     return () => clearTimeout(timeout);
@@ -168,40 +168,112 @@ export default function LoginPage() {
   }, [registrationNumber, isTyping, lastCharIndex]);
 
   /* ==========================
+     CONVERT KEY TO SPOKEN TEXT
+  ========================== */
+  const getKeyName = (e: KeyboardEvent): string => {
+    const keyMap: Record<string, string> = {
+      // Special keys
+      Escape: "escape",
+      Enter: "enter",
+      Backspace: "hapus",
+      Delete: "delete",
+      Tab: "tab",
+      CapsLock: "caps lock",
+      Shift: "shift",
+      Control: "control",
+      Alt: "alt",
+      Meta: "command",
+      Space: "spasi",
+      // Arrow keys
+      ArrowUp: "panah atas",
+      ArrowDown: "panah bawah",
+      ArrowLeft: "panah kiri",
+      ArrowRight: "panah kanan",
+      // Function keys
+      F1: "f 1",
+      F2: "f 2",
+      F3: "f 3",
+      F4: "f 4",
+      F5: "f 5",
+      F6: "f 6",
+      F7: "f 7",
+      F8: "f 8",
+      F9: "f 9",
+      F10: "f 10",
+      F11: "f 11",
+      F12: "f 12",
+      // Other special keys
+      Home: "home",
+      End: "end",
+      PageUp: "page up",
+      PageDown: "page down",
+      Insert: "insert",
+      NumLock: "num lock",
+      ScrollLock: "scroll lock",
+      Pause: "pause",
+      ContextMenu: "menu",
+    };
+
+    // Check if key is in the map
+    if (keyMap[e.key]) {
+      return keyMap[e.key];
+    }
+
+    // For single characters (letters, numbers, symbols)
+    if (e.key.length === 1) {
+      return e.key;
+    }
+
+    // Default: return the key name as is
+    return e.key;
+  };
+
+  /* ==========================
      KEYBOARD CONTROL
   ========================== */
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Panah kanan → mulai mengetik
-      if (e.key === "ArrowRight") {
+      // Speak every key pressed (untuk accessibility)
+      const keyName = getKeyName(e);
+
+      // Spasi → mulai mengetik (jika tidak sedang mengetik)
+      if (e.code === "Space" && !isTyping) {
+        e.preventDefault();
         setIsTyping(true);
         inputRef.current?.focus();
-        speak("Silakan ketik nomor registrasi.");
+        speak("spasi. Silakan ketik nomor registrasi.");
+        return;
       }
 
-      // Panah kiri → ulangi instruksi
-      if (e.key === "ArrowLeft") {
-        speak("Tekan panah kanan untuk mengetik. ... Tekan Escape untuk mendengar ulang. ... Tekan Spasi untuk masuk.");
-      }
-
-      // ESC → keluar dari mode mengetik dan baca seluruh hasil
+      // ESC → keluar dari mode mengetik
       if (e.key === "Escape") {
         e.preventDefault();
         setIsTyping(false);
         inputRef.current?.blur();
 
         if (registrationNumber.trim()) {
-          speak(`Nomor registrasi Anda adalah ... ${registrationNumber.split("").join(" ... ")}`);
+          speak(`escape. Keluar dari mode mengetik. Nomor registrasi Anda adalah ... ${registrationNumber.split("").join(" ... ")}`);
         } else {
-          speak("Nomor registrasi masih kosong.");
+          speak("escape. Keluar dari mode mengetik. Nomor registrasi masih kosong.");
         }
+        return;
       }
 
-      // Spasi → submit login (jika tidak sedang mengetik)
-      if (e.code === "Space" && !isTyping) {
+      // Enter → submit login (jika tidak sedang mengetik)
+      if (e.key === "Enter" && !isTyping) {
         e.preventDefault();
-        speak("Mengirim login.");
+        speak("enter. Mengirim login.");
         document.querySelector("form")?.requestSubmit();
+        return;
+      }
+
+      // Ucapkan semua tombol khusus (yang bukan karakter tunggal)
+      // Karakter tunggal saat mengetik sudah dihandle oleh useEffect lain
+      if (e.key.length > 1) {
+        speakChar(keyName);
+      } else if (!isTyping) {
+        // Jika tidak sedang mengetik, ucapkan karakter tunggal juga
+        speakChar(keyName);
       }
     };
 

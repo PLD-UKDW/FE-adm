@@ -82,7 +82,7 @@ export default function DashboardPeserta() {
   return (
     <div className="min-h-screen bg-gray-100 p-6">
       <h1 className="text-2xl font-bold mb-6">
-        Selamat Datang di Dashboard Peserta
+        Selamat Datang di Halaman Tes
       </h1>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

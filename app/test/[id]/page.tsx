@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import api from "@/lib/api";
+import { speak, getSpeedLabel } from "@/components/TTSControl";
 
 /* =====================================================
    DO TEST PAGE – SCREEN READER FIRST
@@ -27,13 +28,16 @@ export default function DoTestPage() {
      ACCESSIBILITY
   ========================== */
   const [useTTS, setUseTTS] = useState(true);
+  const [currentSpeed, setCurrentSpeed] = useState(1);
   const [optionIndex, setOptionIndex] = useState(0);
   const [isTypingEssay, setIsTypingEssay] = useState(false);
   const [lastArrowLeftTime, setLastArrowLeftTime] = useState(0);
+  const [lastSpaceTime, setLastSpaceTime] = useState(0);
   const essayRef = useRef<HTMLTextAreaElement>(null);
   const isTypingRef = useRef(false);
   const showConfirmRef = useRef(false);
   const arrowLeftTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const spaceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const introSpokenRef = useRef(false);
 
   /* ==========================
@@ -86,7 +90,8 @@ export default function DoTestPage() {
     const text = charMap[char] || char;
     const u = new SpeechSynthesisUtterance(text);
     u.lang = "id-ID";
-    u.rate = 1.0;
+    // Gunakan rate yang tersimpan
+    u.rate = Number(localStorage.getItem("tts:rate") || 1);
     window.speechSynthesis.speak(u);
   };
 
@@ -94,6 +99,31 @@ export default function DoTestPage() {
   useEffect(() => {
     isTypingRef.current = isTypingEssay;
   }, [isTypingEssay]);
+
+  /* =====================================================
+     CHANGE SPEECH SPEED
+  ===================================================== */
+  const changeSpeed = (delta: number) => {
+    setCurrentSpeed((prev) => {
+      const next = Math.min(2, Math.max(0.5, prev + delta));
+      localStorage.setItem("tts:rate", String(next));
+
+      // Speak feedback
+      if (useTTS && "speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+        const u1 = new SpeechSynthesisUtterance("Kecepatan suara diubah.");
+        u1.lang = "id-ID";
+        u1.rate = next;
+        const u2 = new SpeechSynthesisUtterance(`Kecepatan sekarang ${next.toFixed(1)}`);
+        u2.lang = "id-ID";
+        u2.rate = next;
+        window.speechSynthesis.speak(u1);
+        window.speechSynthesis.speak(u2);
+      }
+
+      return next;
+    });
+  };
 
   useEffect(() => {
     showConfirmRef.current = showConfirmPopup;
@@ -108,10 +138,13 @@ export default function DoTestPage() {
 
     window.speechSynthesis.cancel();
 
+    // Gunakan rate yang tersimpan
+    const savedRate = Number(localStorage.getItem("tts:rate") || 1);
+
     texts.forEach((text) => {
       const u = new SpeechSynthesisUtterance(text);
       u.lang = "id-ID";
-      u.rate = 0.6;
+      u.rate = savedRate;
       window.speechSynthesis.speak(u);
     });
   };
@@ -129,6 +162,9 @@ export default function DoTestPage() {
 
         window.speechSynthesis.cancel();
 
+        // Gunakan rate yang tersimpan
+        const savedRate = Number(localStorage.getItem("tts:rate") || 1);
+
         if (texts.length === 0) {
           resolve();
           return;
@@ -137,7 +173,7 @@ export default function DoTestPage() {
         texts.forEach((text, index) => {
           const u = new SpeechSynthesisUtterance(text);
           u.lang = "id-ID";
-          u.rate = 0.6;
+          u.rate = savedRate;
 
           // Resolve when the last utterance ends
           if (index === texts.length - 1) {
@@ -163,6 +199,10 @@ export default function DoTestPage() {
     }
 
     setUseTTS(localStorage.getItem("accessMode") !== "no-tts");
+
+    // Load saved speed preference
+    const savedSpeed = Number(localStorage.getItem("tts:rate") || 1);
+    setCurrentSpeed(savedSpeed);
 
     api
       .get(`/api/test/${id}`, {
@@ -197,16 +237,16 @@ export default function DoTestPage() {
           queue.push(`Pilihan ${label}. ... ${opt} ...`);
         });
 
-        queue.push("Gunakan panah atas dan bawah untuk memilih jawaban. ... Tekan spasi untuk memilih.");
+        queue.push("Gunakan panah atas dan bawah untuk memilih jawaban. ... Tekan enter untuk memilih.");
       } else if (q.questionType === "CHECKBOX") {
         q.options.forEach((opt: string, i: number) => {
           const label = getLetter(i);
           queue.push(`Pilihan ${label}. ... ${opt} ...`);
         });
 
-        queue.push("Soal checklist. ... Gunakan panah atas dan bawah untuk navigasi. ... Tekan spasi untuk mencentang atau menghapus centang.");
+        queue.push("Soal checklist. ... Gunakan panah atas dan bawah untuk navigasi. ... Tekan enter untuk mencentang atau menghapus centang.");
       } else {
-        queue.push("Soal esai. ... Tekan spasi untuk mengetik jawaban Anda. ... Tekan escape untuk keluar dari mode mengetik.");
+        queue.push("Soal esai. ... Tekan enter untuk mengetik jawaban Anda. ... Tekan escape untuk keluar dari mode mengetik.");
       }
 
       await speakQueueAndWait(queue);
@@ -238,8 +278,10 @@ export default function DoTestPage() {
         `Ada ${questions.length} soal.`,
         "Panah kiri atau kanan untuk pindah soal.",
         "Panah atas atau bawah untuk pilih jawaban.",
-        "Tekan spasi untuk memilih.",
+        "Tekan enter untuk memilih.",
+        "Tekan F untuk membaca ulang soal.",
         "Tekan panah kiri dua kali untuk ulang instruksi.",
+        "Gunakan Shift panah atas untuk mempercepat suara, atau Shift panah bawah untuk memperlambat.",
         "Soal pertama.",
         `Soal 1. ...`,
         `${q.text} ...`,
@@ -251,15 +293,15 @@ export default function DoTestPage() {
           const label = getLetter(i);
           introAndFirstQuestion.push(`Pilihan ${label}. ... ${opt} ...`);
         });
-        introAndFirstQuestion.push("Gunakan panah atas dan bawah untuk memilih jawaban. ... Tekan spasi untuk memilih.");
+        introAndFirstQuestion.push("Gunakan panah atas dan bawah untuk memilih jawaban. ... Tekan enter untuk memilih.");
       } else if (q.questionType === "CHECKBOX") {
         q.options.forEach((opt: string, i: number) => {
           const label = getLetter(i);
           introAndFirstQuestion.push(`Pilihan ${label}. ... ${opt} ...`);
         });
-        introAndFirstQuestion.push("Soal checklist. ... Gunakan panah atas dan bawah untuk navigasi. ... Tekan spasi untuk mencentang atau menghapus centang.");
+        introAndFirstQuestion.push("Soal checklist. ... Gunakan panah atas dan bawah untuk navigasi. ... Tekan enter untuk mencentang atau menghapus centang.");
       } else {
-        introAndFirstQuestion.push("Soal esai. ... Tekan spasi untuk mengetik jawaban Anda. ... Tekan escape untuk keluar dari mode mengetik.");
+        introAndFirstQuestion.push("Soal esai. ... Tekan enter untuk mengetik jawaban Anda. ... Tekan escape untuk keluar dari mode mengetik.");
       }
 
       await speakQueueAndWait(introAndFirstQuestion);
@@ -281,6 +323,19 @@ export default function DoTestPage() {
       // Jika sedang mengetik essay, abaikan keyboard navigation
       if (isTypingRef.current) return;
 
+      /* SPEED CONTROL - Shift + Arrow Up/Down */
+      if (e.shiftKey && e.code === "ArrowUp") {
+        e.preventDefault();
+        changeSpeed(0.1);
+        return;
+      }
+
+      if (e.shiftKey && e.code === "ArrowDown") {
+        e.preventDefault();
+        changeSpeed(-0.1);
+        return;
+      }
+
       const q = questions[current];
 
       // Deteksi double left arrow untuk mengulang instruksi
@@ -301,9 +356,11 @@ export default function DoTestPage() {
             `Anda sedang mengerjakan soal ${current + 1} dari ${questions.length}. ...`,
             "Gunakan panah kiri dan kanan untuk berpindah soal. ...",
             "Gunakan panah atas dan bawah untuk berpindah jawaban. ...",
-            "Tekan spasi untuk memilih jawaban. ...",
+            "Tekan enter untuk memilih jawaban. ...",
+            "Tekan F untuk membaca ulang soal. ...",
             "Tekan panah kiri dua kali untuk mengulang instruksi ini. ...",
-            "Pada soal esai, tekan escape untuk keluar dari mode mengetik.",
+            "Pada soal esai, tekan escape untuk keluar dari mode mengetik. ...",
+            "Gunakan Shift panah atas untuk mempercepat suara, atau Shift panah bawah untuk memperlambat.",
           ]);
           setLastArrowLeftTime(0);
           return;
@@ -374,6 +431,13 @@ export default function DoTestPage() {
         }
       }
 
+      // Tekan F untuk baca ulang soal
+      if (e.code === "KeyF") {
+        e.preventDefault();
+        readQuestion(current);
+        return;
+      }
+
       // MULTIPLE CHOICE
       if (q.questionType === "MULTIPLE_CHOICE") {
         if (e.code === "ArrowDown" || e.code === "ArrowUp") {
@@ -388,12 +452,11 @@ export default function DoTestPage() {
           });
         }
 
-        if (e.code === "Space") {
+        // Enter untuk memilih jawaban
+        if (e.code === "Enter") {
           e.preventDefault();
-
           const key = getLetter(optionIndex, false);
           setAnswers((prev) => ({ ...prev, [q.id]: key }));
-
           speakQueue(["Jawaban dipilih. ...", `Pilihan ${getLetter(optionIndex)}.`]);
         }
       }
@@ -414,26 +477,27 @@ export default function DoTestPage() {
           });
         }
 
-        if (e.code === "Space") {
+        // Enter untuk toggle centang
+        if (e.code === "Enter") {
           e.preventDefault();
-
           const key = getLetter(optionIndex, false);
           setAnswers((prev) => {
-            const current = (prev[q.id] as string[]) || [];
-            if (current.includes(key)) {
+            const currentAnswers = (prev[q.id] as string[]) || [];
+            if (currentAnswers.includes(key)) {
               speakQueue(["Centang dihapus. ...", `Pilihan ${getLetter(optionIndex)}.`]);
-              return { ...prev, [q.id]: current.filter((k) => k !== key) };
+              return { ...prev, [q.id]: currentAnswers.filter((k) => k !== key) };
             } else {
               speakQueue(["Dicentang. ...", `Pilihan ${getLetter(optionIndex)}.`]);
-              return { ...prev, [q.id]: [...current, key] };
+              return { ...prev, [q.id]: [...currentAnswers, key] };
             }
           });
         }
       }
 
-      // ESSAY - tekan spasi untuk mulai mengetik
+      // ESSAY - tekan enter untuk mulai mengetik
       if (q.questionType === "ESSAY" && !isTypingRef.current) {
-        if (e.code === "Space") {
+        // Enter untuk mulai mengetik
+        if (e.code === "Enter") {
           e.preventDefault();
           setIsTypingEssay(true);
           speakQueue(["Mode mengetik aktif. ...", "Ketik jawaban Anda. ...", "Tekan Escape untuk keluar dari mode mengetik."]);
@@ -446,7 +510,7 @@ export default function DoTestPage() {
 
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [useTTS, questions, current, optionIndex, answers, lastArrowLeftTime]);
+  }, [useTTS, questions, current, optionIndex, answers, lastArrowLeftTime, readQuestion, speakQueueAndWait, getLetter, router]);
 
   /* ==========================
      SUBMIT
@@ -578,7 +642,7 @@ export default function DoTestPage() {
 
         {q.questionType === "ESSAY" && (
           <div className="space-y-3">
-            {!isTypingEssay && useTTS && <p className="text-lg text-blue-600 font-medium">Tekan Spasi untuk mulai mengetik jawaban</p>}
+            {!isTypingEssay && useTTS && <p className="text-lg text-blue-600 font-medium">Tekan Enter untuk mulai mengetik jawaban</p>}
             <textarea
               ref={essayRef}
               className={`w-full border rounded-lg p-4 text-lg ${isTypingEssay ? "border-blue-500 ring-2 ring-blue-300" : ""}`}
@@ -616,7 +680,7 @@ export default function DoTestPage() {
               onBlur={() => {
                 if (useTTS) setIsTypingEssay(false);
               }}
-              placeholder={useTTS && !isTypingEssay ? "Tekan Spasi untuk mengetik..." : "Ketik jawaban Anda di sini..."}
+              placeholder={useTTS && !isTypingEssay ? "Tekan Enter untuk mengetik..." : "Ketik jawaban Anda di sini..."}
               readOnly={useTTS && !isTypingEssay}
             />
             {isTypingEssay && <p className="text-sm text-gray-500">Tekan Escape untuk keluar dari mode mengetik</p>}
@@ -677,6 +741,25 @@ export default function DoTestPage() {
                 {submitting ? "Mengirim..." : "Ya, Kirim"}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* FLOATING SPEED CONTROL */}
+      {useTTS && !showConfirmPopup && (
+        <div className="fixed bottom-6 right-6 bg-white shadow-xl border rounded-xl p-4 flex flex-col gap-3 items-center">
+          <p className="text-sm font-semibold text-black">Kecepatan Suara</p>
+
+          <div className="flex items-center gap-3">
+            <button onClick={() => changeSpeed(-0.1)} className="px-3 py-2 bg-gray-200 rounded-lg text-lg font-bold">
+              −
+            </button>
+
+            <span className="text-lg font-semibold w-12 text-center">{currentSpeed.toFixed(1)}</span>
+
+            <button onClick={() => changeSpeed(0.1)} className="px-3 py-2 bg-gray-200 rounded-lg text-lg font-bold">
+              +
+            </button>
           </div>
         </div>
       )}
