@@ -18,14 +18,14 @@ const PROVINSI_OPTIONS = [
     'Bengkulu',
     'Lampung',
     'DKI Jakarta',
+    'Banten',
     'Jawa Barat',
     'Jawa Tengah',
     'DI Yogyakarta',
     'Jawa Timur',
-    'Banten',
     'Bali',
-    'NTB',
-    'NTT',
+    'Nusa Tenggara Barat',
+    'Nusa Tenggara Timur',
     'Kalimantan Barat',
     'Kalimantan Tengah',
     'Kalimantan Selatan',
@@ -39,17 +39,14 @@ const PROVINSI_OPTIONS = [
     'Sulawesi Barat',
     'Maluku',
     'Maluku Utara',
-    'Papua',
-    'Papua Barat',
-    'Papua Barat Daya',
-    'Papua Selatan',
-    'Papua Tengah',
-    'Papua Pegunungan',
+    'Irian Jaya Barat',
+    'Irian Jaya Tengah',
+    'Irian Jaya Timur',
 ];
 
 const JALUR_OPTIONS = ['Mandiri', 'SNMPTN', 'SBMPTN', 'Undangan'];
 const STATUS_OPTIONS = ['aktif', 'undur diri', 'lulus'];
-const ASAL_SEKOLAH_OPTIONS = ['SLB', 'NonSLB', 'HomeSchooling', 'Sarjana'];
+const ASAL_SEKOLAH_OPTIONS = ['SLB', 'NonSLB', 'HomeSchooling', 'Paket C', 'Sarjana'];
 type Fakultas = {
     id: number;
     nama: string;
