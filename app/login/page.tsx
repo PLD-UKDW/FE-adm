@@ -62,6 +62,7 @@
 "use client";
 
 import api from "@/lib/api";
+import { useTtsRate } from "@/lib/ttsRate";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import React, { useState, useEffect, useRef } from "react";
@@ -74,9 +75,34 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [lastCharIndex, setLastCharIndex] = useState(0);
+  const [currentSpeed, setCurrentSpeed] = useTtsRate(1);
 
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
+
+  /* ==========================
+     CHANGE SPEECH SPEED
+  ========================== */
+  const changeSpeed = (delta: number) => {
+    setCurrentSpeed((prev) => {
+      const next = Math.min(2, Math.max(0.5, prev + delta));
+
+      // Speak feedback
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+        const u1 = new SpeechSynthesisUtterance("Kecepatan suara diubah.");
+        u1.lang = "id-ID";
+        u1.rate = next;
+        const u2 = new SpeechSynthesisUtterance(`Kecepatan sekarang ${next.toFixed(1)}`);
+        u2.lang = "id-ID";
+        u2.rate = next;
+        window.speechSynthesis.speak(u1);
+        window.speechSynthesis.speak(u2);
+      }
+
+      return next;
+    });
+  };
 
   /* ==========================
      TEXT TO SPEECH WITH PROMISE (WAIT UNTIL FINISH)
@@ -88,9 +114,10 @@ export default function LoginPage() {
       window.speechSynthesis.cancel();
     }
 
+    const savedRate = Number(localStorage.getItem("tts:rate") || 1);
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = "id-ID";
-    utterance.rate = 1.0; // lebih cepat
+    utterance.rate = savedRate;
     utterance.pitch = 1;
     utterance.volume = 1;
 
@@ -105,9 +132,10 @@ export default function LoginPage() {
 
     window.speechSynthesis.cancel();
 
+    const savedRate = Number(localStorage.getItem("tts:rate") || 1);
     const utterance = new SpeechSynthesisUtterance(char);
     utterance.lang = "id-ID";
-    utterance.rate = 1.2; // lebih cepat
+    utterance.rate = savedRate;
     utterance.pitch = 1;
 
     window.speechSynthesis.speak(utterance);
@@ -125,9 +153,10 @@ export default function LoginPage() {
 
       window.speechSynthesis.cancel();
 
+      const savedRate = Number(localStorage.getItem("tts:rate") || 1);
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = "id-ID";
-      utterance.rate = 1.2; // lebih cepat
+      utterance.rate = savedRate;
       utterance.pitch = 1;
       utterance.volume = 1;
 
@@ -145,7 +174,9 @@ export default function LoginPage() {
     // Delay untuk memastikan TTS halaman sebelumnya sudah selesai
     const timeout = setTimeout(() => {
       window.speechSynthesis.cancel();
-      speak("Halaman login. ... Tekan Spasi untuk mengetik nomor registrasi. ... Tekan Escape untuk keluar dari mode mengetik. ... Tekan Enter untuk masuk.");
+      speak(
+        "Halaman login. ... Tekan Spasi untuk mengetik nomor registrasi. ... Tekan Escape untuk keluar dari mode mengetik. ... Tekan Enter untuk masuk. ... Gunakan Shift panah atas untuk mempercepat suara, atau Shift panah bawah untuk memperlambat.",
+      );
     }, 500);
 
     return () => clearTimeout(timeout);
@@ -235,6 +266,19 @@ export default function LoginPage() {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Speak every key pressed (untuk accessibility)
       const keyName = getKeyName(e);
+
+      /* SPEED CONTROL - Shift + Arrow Up/Down */
+      if (e.shiftKey && e.code === "ArrowUp") {
+        e.preventDefault();
+        changeSpeed(0.1);
+        return;
+      }
+
+      if (e.shiftKey && e.code === "ArrowDown") {
+        e.preventDefault();
+        changeSpeed(-0.1);
+        return;
+      }
 
       // Spasi → mulai mengetik (jika tidak sedang mengetik)
       if (e.code === "Space" && !isTyping) {
@@ -382,6 +426,23 @@ export default function LoginPage() {
             Kembali ke Halaman Utama
           </button>
         </form>
+      </div>
+
+      {/* FLOATING SPEED CONTROL */}
+      <div className="fixed bottom-6 right-6 bg-white shadow-xl border rounded-xl p-4 flex flex-col gap-3 items-center">
+        <p className="text-sm font-semibold text-black">Kecepatan Suara</p>
+
+        <div className="flex items-center gap-3">
+          <button type="button" onClick={() => changeSpeed(-0.1)} className="px-3 py-2 bg-gray-200 rounded-lg text-lg font-bold text-black">
+            −
+          </button>
+
+          <span className="text-lg font-semibold w-12 text-center text-black">{currentSpeed.toFixed(1)}</span>
+
+          <button type="button" onClick={() => changeSpeed(0.1)} className="px-3 py-2 bg-gray-200 rounded-lg text-lg font-bold text-black">
+            +
+          </button>
+        </div>
       </div>
     </div>
   );

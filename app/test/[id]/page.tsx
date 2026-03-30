@@ -4,6 +4,7 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import api from "@/lib/api";
 import { speak, getSpeedLabel } from "@/components/TTSControl";
+import { useTtsRate } from "@/lib/ttsRate";
 
 /* =====================================================
    DO TEST PAGE – SCREEN READER FIRST
@@ -28,7 +29,7 @@ export default function DoTestPage() {
      ACCESSIBILITY
   ========================== */
   const [useTTS, setUseTTS] = useState(true);
-  const [currentSpeed, setCurrentSpeed] = useState(1);
+  const [currentSpeed, setCurrentSpeed] = useTtsRate(1);
   const [optionIndex, setOptionIndex] = useState(0);
   const [isTypingEssay, setIsTypingEssay] = useState(false);
   const [lastArrowLeftTime, setLastArrowLeftTime] = useState(0);
@@ -106,7 +107,6 @@ export default function DoTestPage() {
   const changeSpeed = (delta: number) => {
     setCurrentSpeed((prev) => {
       const next = Math.min(2, Math.max(0.5, prev + delta));
-      localStorage.setItem("tts:rate", String(next));
 
       // Speak feedback
       if (useTTS && "speechSynthesis" in window) {
@@ -200,10 +200,6 @@ export default function DoTestPage() {
 
     setUseTTS(localStorage.getItem("accessMode") !== "no-tts");
 
-    // Load saved speed preference
-    const savedSpeed = Number(localStorage.getItem("tts:rate") || 1);
-    setCurrentSpeed(savedSpeed);
-
     api
       .get(`/api/test/${id}`, {
         headers: {
@@ -244,9 +240,9 @@ export default function DoTestPage() {
           queue.push(`Pilihan ${label}. ... ${opt} ...`);
         });
 
-        queue.push("Soal checklist. ... Gunakan panah atas dan bawah untuk navigasi. ... Tekan enter untuk mencentang atau menghapus centang.");
+        queue.push("Soal checklist. ... Gunakan panah atas dan bawah untuk berpindah jawaban. ... Tekan enter untuk mencentang atau menghapus centang.");
       } else {
-        queue.push("Soal esai. ... Tekan enter untuk mengetik jawaban Anda. ... Tekan escape untuk keluar dari mode mengetik.");
+        queue.push("Soal esai. ... Tekan enter untuk masuk ke mode mengetik. ... Tekan escape untuk keluar dari mode mengetik.");
       }
 
       await speakQueueAndWait(queue);
@@ -277,7 +273,7 @@ export default function DoTestPage() {
         `Anda mengerjakan ${test.title}.`,
         `Ada ${questions.length} soal.`,
         "Panah kiri atau kanan untuk pindah soal.",
-        "Panah atas atau bawah untuk pilih jawaban.",
+        "Panah atas atau bawah untuk pindah jawaban.",
         "Tekan enter untuk memilih.",
         "Tekan F untuk membaca ulang soal.",
         "Tekan panah kiri dua kali untuk ulang instruksi.",
@@ -293,15 +289,15 @@ export default function DoTestPage() {
           const label = getLetter(i);
           introAndFirstQuestion.push(`Pilihan ${label}. ... ${opt} ...`);
         });
-        introAndFirstQuestion.push("Gunakan panah atas dan bawah untuk memilih jawaban. ... Tekan enter untuk memilih.");
+        introAndFirstQuestion.push("Gunakan panah atas dan bawah untuk berpindah jawaban. ... Tekan enter untuk memilih jawaban.");
       } else if (q.questionType === "CHECKBOX") {
         q.options.forEach((opt: string, i: number) => {
           const label = getLetter(i);
           introAndFirstQuestion.push(`Pilihan ${label}. ... ${opt} ...`);
         });
-        introAndFirstQuestion.push("Soal checklist. ... Gunakan panah atas dan bawah untuk navigasi. ... Tekan enter untuk mencentang atau menghapus centang.");
+        introAndFirstQuestion.push("Soal checklist. ... Gunakan panah atas dan bawah untuk berpindah jawaban. ... Tekan enter untuk mencentang atau menghapus centang.");
       } else {
-        introAndFirstQuestion.push("Soal esai. ... Tekan enter untuk mengetik jawaban Anda. ... Tekan escape untuk keluar dari mode mengetik.");
+        introAndFirstQuestion.push("Soal esai. ... Tekan enter untuk masuk ke mode mengetik. ... Tekan escape untuk keluar dari mode mengetik.");
       }
 
       await speakQueueAndWait(introAndFirstQuestion);
@@ -359,7 +355,7 @@ export default function DoTestPage() {
             "Tekan enter untuk memilih jawaban. ...",
             "Tekan F untuk membaca ulang soal. ...",
             "Tekan panah kiri dua kali untuk mengulang instruksi ini. ...",
-            "Pada soal esai, tekan escape untuk keluar dari mode mengetik. ...",
+            "Pada soal esai, tekan enter untuk masuk ke mode mengetik, atau tekan escape untuk keluar dari mode mengetik. ...",
             "Gunakan Shift panah atas untuk mempercepat suara, atau Shift panah bawah untuk memperlambat.",
           ]);
           setLastArrowLeftTime(0);
@@ -427,7 +423,7 @@ export default function DoTestPage() {
         } else {
           // Soal terakhir, tampilkan popup submit
           setShowConfirmPopup(true);
-          speakQueue(["Ini adalah soal terakhir. ...", "Apakah Anda yakin ingin mengirim jawaban? ...", "Tekan Spasi untuk konfirmasi. ...", "Tekan Escape untuk batal."]);
+          speakQueue(["Ini adalah soal terakhir. ...", "Apakah Anda yakin ingin mengirim jawaban? ...", "Tekan Enter untuk konfirmasi. ...", "Tekan Escape untuk batal."]);
         }
       }
 
@@ -556,7 +552,7 @@ export default function DoTestPage() {
         speakQueue(["Pengiriman dibatalkan. ..."]);
       }
 
-      if (e.code === "Space") {
+      if (e.code === "Enter") {
         e.preventDefault();
         setShowConfirmPopup(false);
         handleSubmit();

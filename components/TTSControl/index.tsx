@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
+import { getStoredTtsRate, setStoredTtsRate, useTtsRate } from "@/lib/ttsRate";
 
 const hasSpeech = typeof window !== "undefined" && "speechSynthesis" in window;
 const synth = hasSpeech && typeof window !== "undefined" ? ((window as any).speechSynthesis as SpeechSynthesis) : null;
@@ -82,14 +83,13 @@ export function resume() {
 // Fungsi untuk mengubah kecepatan dan memberikan feedback audio
 export function setSpeed(rate: number, announceFeedback = true) {
   if (typeof window === "undefined") return;
-  localStorage.setItem("tts:rate", String(rate));
-  window.dispatchEvent(new CustomEvent("tts:speedchange", { detail: { rate } }));
-  
+  const nextRate = setStoredTtsRate(rate);
+
   if (announceFeedback && synth) {
-    const label = getSpeedLabel(rate);
+    const label = getSpeedLabel(nextRate);
     // Feedback audio dengan kecepatan baru
     setTimeout(() => {
-      speak(`Kecepatan ${label}`, { rate });
+      speak(`Kecepatan ${label}`, { rate: nextRate });
     }, 100);
   }
 }
@@ -97,7 +97,7 @@ export function setSpeed(rate: number, announceFeedback = true) {
 // Fungsi untuk menaikkan kecepatan
 export function increaseSpeed() {
   if (typeof window === "undefined") return;
-  const currentRate = Number(localStorage.getItem("tts:rate") || 1);
+  const currentRate = getStoredTtsRate();
   const newRate = Math.min(2, currentRate + 0.25);
   setSpeed(newRate);
   return newRate;
@@ -106,7 +106,7 @@ export function increaseSpeed() {
 // Fungsi untuk menurunkan kecepatan
 export function decreaseSpeed() {
   if (typeof window === "undefined") return;
-  const currentRate = Number(localStorage.getItem("tts:rate") || 1);
+  const currentRate = getStoredTtsRate();
   const newRate = Math.max(0.5, currentRate - 0.25);
   setSpeed(newRate);
   return newRate;
@@ -119,37 +119,42 @@ export function decreaseSpeed() {
 export default function TTSControl() {
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
-  const [rate, setRate] = useState<number>(1);
+  const [rate, setRate] = useTtsRate(1);
   const [pitch, setPitch] = useState<number>(1);
   const [statusMessage, setStatusMessage] = useState<string>("TTS siap.");
   const [activePreset, setActivePreset] = useState<SpeedPreset>("normal");
 
   // Handle speed preset change
-  const handlePresetChange = useCallback((preset: SpeedPreset) => {
-    const { rate: newRate } = SPEED_PRESETS[preset];
-    setRate(newRate);
-    setActivePreset(preset);
-    localStorage.setItem("tts:rate", String(newRate));
-    // Berikan feedback audio
-    speak(`Kecepatan ${SPEED_PRESETS[preset].label}`, { rate: newRate });
-  }, []);
+  const handlePresetChange = useCallback(
+    (preset: SpeedPreset) => {
+      const { rate: newRate } = SPEED_PRESETS[preset];
+      setRate(newRate);
+      setActivePreset(preset);
+      // Berikan feedback audio
+      speak(`Kecepatan ${SPEED_PRESETS[preset].label}`, { rate: newRate });
+    },
+    [setRate],
+  );
 
   // Handle manual rate change
-  const handleRateChange = useCallback((newRate: number) => {
-    setRate(newRate);
-    setActivePreset(getNearestPreset(newRate));
-    localStorage.setItem("tts:rate", String(newRate));
-  }, []);
+  const handleRateChange = useCallback(
+    (newRate: number) => {
+      setRate(newRate);
+      setActivePreset(getNearestPreset(newRate));
+    },
+    [setRate],
+  );
+
+  useEffect(() => {
+    setActivePreset(getNearestPreset(rate));
+  }, [rate]);
 
   useEffect(() => {
     if (!synth) return;
 
-    const initRate = typeof window !== "undefined" ? Number(localStorage.getItem("tts:rate") || 1) : 1;
     const initPitch = typeof window !== "undefined" ? Number(localStorage.getItem("tts:pitch") || 1) : 1;
     const initVoice = typeof window !== "undefined" ? localStorage.getItem("tts:voice") : null;
-    setRate(initRate);
     setPitch(initPitch);
-    setActivePreset(getNearestPreset(initRate));
     if (initVoice) setSelected(initVoice);
 
     const load = () => {
@@ -238,12 +243,12 @@ export default function TTSControl() {
           ============================================ */}
       <fieldset className="mt-4 p-3 border rounded-lg bg-blue-50">
         <legend className="text-sm font-semibold text-blue-800 px-2">🎚️ Kecepatan Suara</legend>
-        
+
         {/* Preset Buttons untuk akses cepat */}
         <div className="mt-2">
           <div className="text-xs text-gray-600 mb-2">Pilih kecepatan cepat:</div>
           <div className="flex flex-wrap gap-1" role="radiogroup" aria-label="Pilih kecepatan suara">
-            {(Object.entries(SPEED_PRESETS) as [SpeedPreset, typeof SPEED_PRESETS[SpeedPreset]][]).map(([key, { label }]) => (
+            {(Object.entries(SPEED_PRESETS) as [SpeedPreset, (typeof SPEED_PRESETS)[SpeedPreset]][]).map(([key, { label }]) => (
               <button
                 key={key}
                 type="button"
@@ -251,9 +256,7 @@ export default function TTSControl() {
                 aria-checked={activePreset === key}
                 onClick={() => handlePresetChange(key)}
                 className={`px-2 py-1 text-xs rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                  activePreset === key
-                    ? "bg-blue-600 text-white border-blue-600"
-                    : "bg-white text-gray-700 border-gray-300 hover:border-blue-400"
+                  activePreset === key ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-700 border-gray-300 hover:border-blue-400"
                 }`}
                 aria-label={`Kecepatan ${label}`}
               >
@@ -277,14 +280,14 @@ export default function TTSControl() {
           >
             −
           </button>
-          
+
           <div className="flex-1 text-center">
             <div className="text-lg font-semibold text-blue-800" aria-live="polite" aria-atomic="true">
               {getSpeedLabel(rate)}
             </div>
             <div className="text-xs text-gray-500">{rate.toFixed(1)}x</div>
           </div>
-          
+
           <button
             type="button"
             onClick={() => {
@@ -357,7 +360,11 @@ export default function TTSControl() {
       </div>
 
       <div className="flex flex-wrap gap-2 mt-4">
-        <button onClick={() => speak("Halo, ini adalah contoh suara bahasa Indonesia.", { voiceURI: selected ?? undefined })} className="px-3 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500" aria-label="Test suara Indonesia">
+        <button
+          onClick={() => speak("Halo, ini adalah contoh suara bahasa Indonesia.", { voiceURI: selected ?? undefined })}
+          className="px-3 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+          aria-label="Test suara Indonesia"
+        >
           🔊 Test Suara
         </button>
         <button onClick={() => resume()} className="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500" aria-label="Lanjutkan pembacaan">
@@ -377,8 +384,12 @@ export default function TTSControl() {
         <ul className="list-disc list-inside space-y-1">
           <li>Gunakan tombol preset untuk memilih kecepatan cepat</li>
           <li>Tombol + dan − untuk menyesuaikan kecepatan secara halus</li>
-          <li>Pada halaman tes: tekan <kbd className="px-1 py-0.5 bg-gray-200 rounded">-</kbd> untuk lambat, <kbd className="px-1 py-0.5 bg-gray-200 rounded">=</kbd> untuk cepat</li>
-          <li>Tekan <kbd className="px-1 py-0.5 bg-gray-200 rounded">0</kbd> untuk kecepatan normal</li>
+          <li>
+            Pada halaman tes: tekan <kbd className="px-1 py-0.5 bg-gray-200 rounded">-</kbd> untuk lambat, <kbd className="px-1 py-0.5 bg-gray-200 rounded">=</kbd> untuk cepat
+          </li>
+          <li>
+            Tekan <kbd className="px-1 py-0.5 bg-gray-200 rounded">0</kbd> untuk kecepatan normal
+          </li>
           <li>Pengaturan kecepatan akan tersimpan otomatis</li>
         </ul>
       </div>

@@ -97,6 +97,8 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
+import { getSpeedLabel } from "@/components/TTSControl";
+import { getStoredTtsRate, useTtsRate } from "@/lib/ttsRate";
 
 export default function TestResultPage() {
   const { id } = useParams();
@@ -108,19 +110,21 @@ export default function TestResultPage() {
   const [test, setTest] = useState<any>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [hasSpoken, setHasSpoken] = useState(false);
+  const [speechRate, setSpeechRate] = useTtsRate(1);
 
   /* =====================================================
      🔊 SPEECH ENGINE
   ===================================================== */
-  const speakQueue = (texts: string[]) => {
+  const speakQueue = (texts: string[], rate?: number) => {
     if (!("speechSynthesis" in window)) return;
 
     window.speechSynthesis.cancel();
+    const currentRate = rate ?? getStoredTtsRate();
 
     texts.forEach((text) => {
       const u = new SpeechSynthesisUtterance(text);
       u.lang = "id-ID";
-      u.rate = 0.7;
+      u.rate = currentRate;
       window.speechSynthesis.speak(u);
     });
   };
@@ -128,7 +132,7 @@ export default function TestResultPage() {
   /* =====================================================
      🔊 SPEECH QUEUE WITH PROMISE (WAIT UNTIL FINISH)
   ===================================================== */
-  const speakQueueAndWait = (texts: string[]): Promise<void> => {
+  const speakQueueAndWait = (texts: string[], rate?: number): Promise<void> => {
     return new Promise((resolve) => {
       if (!("speechSynthesis" in window)) {
         resolve();
@@ -136,6 +140,7 @@ export default function TestResultPage() {
       }
 
       window.speechSynthesis.cancel();
+      const currentRate = rate ?? getStoredTtsRate();
 
       if (texts.length === 0) {
         resolve();
@@ -145,7 +150,7 @@ export default function TestResultPage() {
       texts.forEach((text, index) => {
         const u = new SpeechSynthesisUtterance(text);
         u.lang = "id-ID";
-        u.rate = 0.7;
+        u.rate = currentRate;
 
         // Resolve when the last utterance ends
         if (index === texts.length - 1) {
@@ -226,31 +231,95 @@ export default function TestResultPage() {
         texts.push(attempt.passStatus === "PASS" ? "Selamat, Anda dinyatakan lulus. ..." : "Maaf, Anda dinyatakan tidak lulus. ...");
       }
 
-      texts.push("Tekan Spasi untuk kembali ke dashboard.");
+      texts.push("Tekan Spasi untuk kembali ke dashboard. Tekan plus atau minus untuk mengatur kecepatan suara.");
 
       speakQueue(texts);
       setHasSpoken(true);
     }, 500);
 
     return () => clearTimeout(timeout);
-  }, [attempt, test, hasSpoken]);
+  }, [attempt, test, hasSpoken, speechRate]);
+
+  // Fungsi untuk mengubah kecepatan
+  const changeSpeed = useCallback(
+    (delta: number) => {
+      const newRate = setSpeechRate((prev) => Math.max(0.5, Math.min(2, prev + delta)));
+
+      // Feedback audio
+      window.speechSynthesis.cancel();
+      const label = getSpeedLabel(newRate);
+      speakQueue([`Kecepatan ${label}`], newRate);
+    },
+    [setSpeechRate],
+  );
+
+  // Fungsi untuk membacakan ulang hasil
+  const replayResult = useCallback(() => {
+    if (!attempt || !test) return;
+
+    window.speechSynthesis.cancel();
+    const texts: string[] = [];
+
+    texts.push(`Hasil Tes ${test.title}. ...`);
+    texts.push(`Skor otomatis Anda adalah ${attempt.autoScore}. ...`);
+
+    if (attempt.manualScore !== null) {
+      texts.push(`Skor essay adalah ${attempt.manualScore}. ...`);
+    }
+
+    if (attempt.finalScore !== null) {
+      texts.push(`Skor akhir Anda adalah ${attempt.finalScore}. ...`);
+    } else {
+      texts.push("Skor akhir sedang menunggu penilaian admin. ...");
+    }
+
+    if (attempt.passStatus) {
+      texts.push(attempt.passStatus === "PASS" ? "Selamat, Anda dinyatakan lulus. ..." : "Maaf, Anda dinyatakan tidak lulus. ...");
+    }
+
+    speakQueue(texts);
+  }, [attempt, test]);
 
   /* =====================================================
      KEYBOARD NAVIGATION
   ===================================================== */
   useEffect(() => {
     const handler = async (e: KeyboardEvent) => {
-      if (e.code === "Space") {
-        e.preventDefault();
-        window.speechSynthesis.cancel();
-        await speakQueueAndWait(["Kembali ke dashboard. ..."]);
-        router.push("/dashboard/camaba");
+      // Abaikan jika sedang mengetik di input
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+      switch (e.code) {
+        case "Space":
+          e.preventDefault();
+          window.speechSynthesis.cancel();
+          await speakQueueAndWait(["Kembali ke dashboard. ..."]);
+          router.push("/dashboard/camaba");
+          break;
+
+        case "Equal": // + key
+        case "NumpadAdd":
+        case "ArrowUp":
+          e.preventDefault();
+          changeSpeed(0.25);
+          break;
+
+        case "Minus":
+        case "NumpadSubtract":
+        case "ArrowDown":
+          e.preventDefault();
+          changeSpeed(-0.25);
+          break;
+
+        case "KeyR":
+          e.preventDefault();
+          replayResult();
+          break;
       }
     };
 
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [router]);
+  }, [router, changeSpeed, replayResult]);
 
   if (!attempt || !test) return <p className="p-8 text-2xl">Memuat...</p>;
 
@@ -259,7 +328,7 @@ export default function TestResultPage() {
 
   return (
     <div className="max-w-2xl mx-auto p-8 text-black">
-      <h1 className="text-4xl font-bold mb-6">Hasil Tes {test.title}</h1>
+      <h1 className="text-4xl font-bold mb-6">Hasil {test.title}</h1>
 
       <div className="bg-white border rounded-xl p-8 shadow space-y-4">
         <p className="text-xl">
@@ -296,6 +365,25 @@ export default function TestResultPage() {
       <a href="/dashboard/camaba" className="block mt-4 bg-blue-600 text-white py-3 text-center rounded-lg text-lg font-semibold">
         Kembali ke Dashboard
       </a>
+
+      {/* =====================================================
+          FLOATING SPEED CONTROL - KONSISTEN DENGAN HALAMAN LAIN
+      ===================================================== */}
+      <div className="fixed bottom-6 right-6 bg-white shadow-xl border rounded-xl p-4 flex flex-col gap-3 items-center">
+        <p className="text-sm font-semibold text-black">Kecepatan Suara</p>
+
+        <div className="flex items-center gap-3">
+          <button onClick={() => changeSpeed(-0.1)} className="px-3 py-2 bg-gray-200 rounded-lg text-lg font-bold" aria-label="Kurangi kecepatan suara">
+            −
+          </button>
+
+          <span className="text-lg font-semibold w-12 text-center">{speechRate.toFixed(1)}</span>
+
+          <button onClick={() => changeSpeed(0.1)} className="px-3 py-2 bg-gray-200 rounded-lg text-lg font-bold" aria-label="Tambah kecepatan suara">
+            +
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

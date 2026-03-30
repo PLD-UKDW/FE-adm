@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import api from "@/lib/api";
+import { useTtsRate } from "@/lib/ttsRate";
 import { LogOut } from "lucide-react";
 
 /* =====================================================
@@ -22,12 +23,13 @@ export default function CamabaDashboardPage() {
      ACCESSIBILITY STATE
   ========================== */
   const [useTTS, setUseTTS] = useState(true);
+  const [useKeyboardNav, setUseKeyboardNav] = useState(true);
   const [showAccessPopup, setShowAccessPopup] = useState(false);
 
   /* ==========================
      TTS SPEED CONTROL
   ========================== */
-  const [speechRate, setSpeechRate] = useState(1.1);
+  const [speechRate, setSpeechRate] = useTtsRate(1.1);
 
   /* ==========================
      NAVIGATION STATE
@@ -148,12 +150,24 @@ export default function CamabaDashboardPage() {
   useEffect(() => {
     if (loading) return;
 
+    const savedMode = localStorage.getItem("accessMode");
+    if (savedMode === "no-tts") {
+      setUseTTS(false);
+      setUseKeyboardNav(false);
+      setAccessIndex(1);
+    } else {
+      setUseTTS(true);
+      setUseKeyboardNav(true);
+      setAccessIndex(0);
+    }
+
     const popupShown = sessionStorage.getItem("popupShown");
     if (popupShown === "true") return;
 
     sessionStorage.setItem("popupShown", "true");
 
     setUseTTS(true);
+    setUseKeyboardNav(true);
     setShowAccessPopup(true);
 
     const timeout = setTimeout(() => {
@@ -191,12 +205,14 @@ export default function CamabaDashboardPage() {
 
         if (selected.id === "tts") {
           setUseTTS(true);
+          setUseKeyboardNav(true);
+          localStorage.setItem("accessMode", "tts");
 
           speakQueue([
             "Bantuan suara aktif.",
             `Ada ${tests.length} tes tersedia.`,
             "Gunakan panah kanan atau kiri untuk memilih.",
-            "Tekan spasi untuk membuka.",
+            "Tekan enter untuk membuka.",
             "Tekan panah kiri dua kali untuk mendengar ulang instruksi.",
             "Tekan escape untuk keluar.",
             "Gunakan Shift dan panah atas atau bawah untuk mengatur kecepatan suara.",
@@ -204,6 +220,8 @@ export default function CamabaDashboardPage() {
         } else {
           window.speechSynthesis.cancel();
           setUseTTS(false);
+          setUseKeyboardNav(false);
+          localStorage.setItem("accessMode", "no-tts");
         }
 
         setShowAccessPopup(false);
@@ -230,7 +248,7 @@ export default function CamabaDashboardPage() {
      DASHBOARD KEYBOARD NAV
   ===================================================== */
   useEffect(() => {
-    if (!useTTS || showAccessPopup || !tests.length) return;
+    if (!useTTS || !useKeyboardNav || showAccessPopup || !tests.length) return;
 
     const handler = async (e: KeyboardEvent) => {
       /* SPEED CONTROL */
@@ -257,7 +275,7 @@ export default function CamabaDashboardPage() {
             "Instruksi.",
             `Anda berada di tes ${selectedIndex + 1} dari ${tests.length}.`,
             "Gunakan panah kanan atau kiri untuk memilih.",
-            "Tekan spasi untuk membuka.",
+            "Tekan enter untuk membuka.",
             "Tekan panah kiri dua kali untuk mengulang instruksi.",
             "Tekan escape untuk keluar akun.",
             "Gunakan shift panah atas atau bawah untuk mengatur kecepatan suara.",
@@ -316,7 +334,7 @@ export default function CamabaDashboardPage() {
 
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [useTTS, tests, selectedIndex, showAccessPopup, lastArrowLeftTime]);
+  }, [useTTS, useKeyboardNav, tests, selectedIndex, showAccessPopup, lastArrowLeftTime]);
 
   /* ==========================
      UI
