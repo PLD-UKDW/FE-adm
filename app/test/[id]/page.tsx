@@ -144,7 +144,7 @@ export default function DoTestPage() {
     texts.forEach((text) => {
       const u = new SpeechSynthesisUtterance(text);
       u.lang = "id-ID";
-      u.rate = savedRate;
+      u.rate = 1;
       window.speechSynthesis.speak(u);
     });
   };
